@@ -143,24 +143,35 @@ void main_graphics() {
 }
 #endif // GRAPHICS
 
-void main_physics() {
-	info.print_logo();
-	main_setup(); // execute setup
-	running = false;
-	exit(0); // make sure that the program stops
-}
 
-#ifndef GRAPHICS
-int main(int argc, char* argv[]) {
-	info.allow_printing.lock();
-	main_arguments = get_main_arguments(argc, argv);
-	thread compute_thread(main_physics);
-	info.allow_printing.unlock();
-	do { // main console loop
-		info.print_update();
-		sleep(0.050);
-	} while(running);
-	compute_thread.join();
-	return 0;
-}
-#endif // GRAPHICS
+#ifdef OPENCL_EXPORT
+	int main(int argc, char *argv[])
+	{
+		string opencl_code = get_opencl_c_code();
+		std::cout << opencl_code;
+		return 0;
+	}
+#else
+
+	void main_physics() {
+		info.print_logo();
+		main_setup(); // execute setup
+		running = false;
+		exit(0); // make sure that the program stops
+	}
+	
+	#ifndef GRAPHICS
+	int main(int argc, char* argv[]) {
+		info.allow_printing.lock();
+		main_arguments = get_main_arguments(argc, argv);
+		thread compute_thread(main_physics);
+		info.allow_printing.unlock();
+		do { // main console loop
+			info.print_update();
+			sleep(0.050);
+		} while(running);
+		compute_thread.join();
+		return 0;
+	}
+	#endif // GRAPHICS
+#endif // OPENCL_EXPORT
