@@ -56,6 +56,12 @@ private:
 	Memory<float> mass; // fluid mass; phi=mass/rho
 	Memory<float> massex; // excess mass; used for mass conservation
 #endif // SURFACE
+#ifdef EXPORT_SURFACE
+	Kernel kernel_export_surface; // kernel for exporting surface triangles using marching cubes
+	Memory<float> surface_vertices; // buffer to store surface mesh vertices (x,y,z for each vertex of each triangle)
+	Memory<uint> surface_count; // counter for the actual number of triangles used
+	ulong max_triangles; // maximum number of triangles the buffer can hold
+#endif // EXPORT_SURFACE
 #ifdef TEMPERATURE
 	Memory<fpxx> gi; // thermal DDFs
 #endif // TEMPERATURE
@@ -102,6 +108,19 @@ public:
 	void enqueue_surface_2();
 	void enqueue_surface_3();
 #endif // SURFACE
+#ifdef EXPORT_SURFACE
+	Kernel kernel_count_surface_triangles; // kernel for counting triangles without storing them
+	void count_surface_triangles(); // run kernel to count triangles and allocate memory
+	void allocate_surface_memory(ulong triangle_count); // allocate memory for exporting surface mesh
+	void enqueue_export_surface(); // export surface mesh using marching cubes
+	ulong get_max_triangles() const { return max_triangles; } // get maximum number of triangles the buffer can hold
+	ulong get_triangle_count(); // get actual number of triangles in the surface mesh
+	float* get_surface_vertices(); // get pointer to surface vertices buffer (in host memory)
+	bool is_surface_memory_allocated() const { return surface_memory_allocated; } // check if surface memory is allocated
+private:
+	bool surface_memory_allocated = false; // flag to track if surface memory has been allocated
+public:
+#endif // EXPORT_SURFACE
 #ifdef FORCE_FIELD
 	void enqueue_update_force_field(); // calculate forces from fluid on TYPE_S cells
 	void enqueue_object_center_of_mass(const uchar flag_marker=TYPE_S); // calculate center of mass of all cells flagged with flag_marker
