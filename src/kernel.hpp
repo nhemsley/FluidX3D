@@ -5,7 +5,7 @@
 
 string opencl_c_container(); // outsourced to kernel.cpp
 string get_opencl_c_code() {
-	return read_file("src/kernel_formatted.cl");
+	return read_file("src/kernel.cl");
 }
 
 // everything below is just for syntax highlighting in the editor, this does not change any functionality
