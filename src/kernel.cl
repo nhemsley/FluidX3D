@@ -4330,6 +4330,17 @@ kernel void graphics_raytrace_phi(const global float *camera,
 }
 #endif
 
+#ifdef EXPORT_SURFACE
+kernel void count_surface_triangles(const global float *phi, global uint *triangle_count) {
+  // Empty implementation placeholder
+}
+
+kernel void export_surface(const global float *phi, global float *vertices, 
+                          global uint *triangle_count, const ulong max_triangles) {
+  // Empty implementation placeholder
+}
+#endif // EXPORT_SURFACE
+
 #ifdef PARTICLES
 
 kernel void graphics_particles(const global float *camera, global int *bitmap,
