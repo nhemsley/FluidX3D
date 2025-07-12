@@ -1308,11 +1308,11 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE|VIS_STREAMLINES;
 	lbm.run();
-} /**/
+}*/
 
 
 
-/*void main_setup() { // thermal convection; required extensions in defines.hpp: FP16S, VOLUME_FORCE, TEMPERATURE, INTERACTIVE_GRAPHICS
+void main_setup() { // thermal convection; required extensions in defines.hpp: FP16S, VOLUME_FORCE, TEMPERATURE, INTERACTIVE_GRAPHICS
 	// ################################################################## define simulation box size, viscosity and volume force ###################################################################
 	LBM lbm(32u, 196u, 60u, 1u, 1u, 1u, 0.02f, 0.0f, 0.0f, -0.0005f, 0.0f, 1.0f, 1.0f);
 	// ###################################################################################### define geometry ######################################################################################
@@ -1330,4 +1330,4 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE|VIS_STREAMLINES;
 	lbm.run();
 	//lbm.run(1000u); lbm.u.read_from_device(); println(lbm.u.x[lbm.index(Nx/2u, Ny/2u, Nz/2u)]); wait(); // test for binary identity
-} /**/
+}
