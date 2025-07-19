@@ -653,6 +653,7 @@ public:
 	}
 	inline const ulong range() const { return N; }
 	inline uint get_number_of_parameters() const { return number_of_parameters; }
+	inline bool is_initialized() const { return number_of_parameters > 0u; }
 	template<class... T> inline Kernel& add_parameters(const T&... parameters) { // add parameters to the list of existing parameters
 		link_parameters(number_of_parameters, parameters...); // expand variadic template to link kernel parameters
 		return *this;

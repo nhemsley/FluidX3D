@@ -203,7 +203,7 @@ void LBM_Domain::count_surface_triangles() {
 	printf("DEBUG: Counting surface triangles...\n");
 	
 	// Initialize the counter kernel if not already done
-	if(kernel_count_surface_triangles.get_number_of_parameters() == 0u) {
+	if(!kernel_count_surface_triangles.is_initialized()) {
 		printf("DEBUG: Initializing count_surface_triangles kernel and counter memory\n");
 		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count);
 		
@@ -264,7 +264,7 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	surface_vertices = Memory<float>(device, max_triangles*9ull, true, "surface_vertices");
 	
 	// Set up kernel for exporting surface if not already initialized
-	if(kernel_export_surface.get_number_of_parameters() == 0u) {
+	if(!kernel_export_surface.is_initialized()) {
 		printf("DEBUG: Initializing export_surface kernel\n");
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
 	} else {
