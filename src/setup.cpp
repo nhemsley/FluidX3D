@@ -1070,21 +1070,28 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		println("  Max: " + to_string(bathymetry_mesh->pmax.x) + ", " + to_string(bathymetry_mesh->pmax.y) + ", " + to_string(bathymetry_mesh->pmax.z));
 		println("  Size: " + to_string(mesh_size.x) + " x " + to_string(mesh_size.y) + " x " + to_string(mesh_size.z));
 
-		// Add some padding around the bathymetry (10% on each side)
-		const float padding = 0.1f;
-		const float3 domain_size = mesh_size * (1.0f + 2.0f * padding);
-
-		// Calculate grid resolution based on domain size, targeting ~2-4GB VRAM usage
-		const float target_vram_mb = 2000.0f; // Target 2GB VRAM usage
-		const float cells_per_mb = 1000000.0f / 320.0f; // Approximate cells per MB for FP16S
-		const float total_cells = target_vram_mb * cells_per_mb;
-
+		// Use reasonable domain sizing based on bathymetry scale
+		const float padding = 1.5f; // Add 1.5x the mesh size as padding for waves
+		const float3 domain_size = mesh_size * (1.0f + padding);
+		
+		// Set resolution based on a target of ~10 cells per unit in the largest dimension
+		const float max_dim = fmax(fmax(mesh_size.x, mesh_size.y), mesh_size.z);
+		const float cells_per_unit = fmin(10.0f, fmax(4.0f, 128.0f / max_dim)); // Between 4-10 cells per unit
+		
 		// Calculate resolution maintaining aspect ratio
-		const float aspect_xy = domain_size.x / domain_size.y;
-		const float aspect_xz = domain_size.x / domain_size.z;
-		Nx = (uint)(cbrt(total_cells * aspect_xy * aspect_xz));
-		Ny = (uint)(Nx / aspect_xy);
-		Nz = (uint)(Nx / aspect_xz);
+		Nx = max(64u, (uint)(domain_size.x * cells_per_unit));
+		Ny = max(64u, (uint)(domain_size.y * cells_per_unit));
+		Nz = max(32u, (uint)(domain_size.z * cells_per_unit * 2.0f)); // Extra resolution in Z for waves
+		
+		// Cap maximum resolution to avoid excessive memory usage
+		const uint max_total = 10000000u; // ~10M cells max
+		const uint total_cells = Nx * Ny * Nz;
+		if(total_cells > max_total) {
+			const float scale = cbrt((float)max_total / (float)total_cells);
+			Nx = max(64u, (uint)(Nx * scale));
+			Ny = max(64u, (uint)(Ny * scale));
+			Nz = max(32u, (uint)(Nz * scale));
+		}
 
 		println("Domain resolution: " + to_string(Nx) + " x " + to_string(Ny) + " x " + to_string(Nz));
 
@@ -1098,12 +1105,18 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	if(!bathymetry_file.empty()) {
 		Mesh* bathymetry_mesh = read_stl(bathymetry_file, 1.0f); // Reload the mesh
 
-		// Translate bathymetry to fit in the domain with padding
-		const float3 mesh_size = bathymetry_mesh->get_bounding_box_size();
-		const float padding = 0.1f;
-		const float3 domain_min = lbm.center() - 0.5f * lbm.size();
-		const float3 mesh_offset = domain_min + padding * mesh_size - bathymetry_mesh->pmin;
+		// Center bathymetry in the domain
+		// Center the bathymetry in the domain
+		const float3 mesh_center = bathymetry_mesh->get_bounding_box_center();
+		const float3 domain_center = lbm.center();
+		
+		// Translate bathymetry so its center aligns with domain center
+		// But offset it down so it sits on the bottom part of the domain for waves
+		const float3 target_center = float3(domain_center.x, domain_center.y, domain_center.z - 0.2f * lbm.size().z);
+		const float3 mesh_offset = target_center - mesh_center;
 		bathymetry_mesh->translate(mesh_offset);
+		
+		println("Translated bathymetry by: " + to_string(mesh_offset.x) + ", " + to_string(mesh_offset.y) + ", " + to_string(mesh_offset.z));
 
 		// Voxelize the bathymetry as solid geometry
 		lbm.voxelize_mesh_on_device(bathymetry_mesh, TYPE_S);
@@ -1132,7 +1145,7 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u) lbm.flags[n] = TYPE_E;
 		}
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
-	// lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE; // Only wireframe mode for better visibility
 
 #ifdef SURFACE_EXPORT
 	// Configure surface export settings
@@ -1142,15 +1155,25 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	surface_export_config.ascii_format = false; // use binary STL format
 #endif // SURFACE_EXPORT
 
-	lbm.run(0u); // initialize simulation
+	const ulong max_timesteps = 5000u; // run for 5000 timesteps (shorter for frame export)
+	lbm.run(0u, max_timesteps); // initialize simulation
 
 #ifdef SURFACE_EXPORT
 	// Export initial surface state
 	export_surface_frame(&lbm, 0u);
 #endif // SURFACE_EXPORT
 
-	const ulong max_timesteps = 10000u; // run for 10000 timesteps
 	while(lbm.get_t() < max_timesteps) { // main simulation loop
+		// Export frames for visualization
+#ifdef GRAPHICS
+		if(lbm.graphics.next_frame(max_timesteps, 10.0f)) { // render frames for 10 seconds at 60fps
+			// Set camera to show the bathymetry and waves
+			const float Nx_f = (float)lbm_Nx, Ny_f = (float)lbm_Ny, Nz_f = (float)lbm_Nz;
+			lbm.graphics.set_camera_free(float3(1.5f*Nx_f, -0.5f*Ny_f, 0.8f*Nz_f), -20.0f, 45.0f, 60.0f);
+			lbm.graphics.write_frame("tmp/bathymetry_frames/");
+		}
+#endif // GRAPHICS
+
 		lbm.u.read_from_device();
 		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
 		const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
@@ -1164,7 +1187,7 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 			}
 		}
 		lbm.u.write_to_device();
-		lbm.run(100u);
+		lbm.run(50u, max_timesteps); // run fewer steps per frame for more frequent frame export
 
 #ifdef SURFACE_EXPORT
 		// Export surface at configured intervals

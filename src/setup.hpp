@@ -4,6 +4,7 @@
 #include "lbm.hpp"
 #include "shapes.hpp"
 #include "stl_export.hpp"
+#include "graphics.hpp"
 
 void main_setup(); // main setup script
 
