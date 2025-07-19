@@ -9,7 +9,7 @@ Camera camera;
 // reserved keys for graphics: W,A,S,D, I,J,K,L, F, R,U, V,B, C,VK_SPACE, Y,X, N,M
 //bool key_A=false, key_B=false, key_C=false, key_D=false, key_E=false, key_F=false, key_G=false, key_H=false, key_I=false, key_J=false, key_K=false, key_L=false, key_M=false;
 //bool key_N=false, key_O=false, key_P=false, key_Q=false, key_R=false, key_S=false, key_T=false, key_U=false, key_V=false, key_W=false, key_X=false, key_Y=false, key_Z=false;
-bool key_E=false, key_G=false, key_H=false, key_O=false, key_P=false, key_Q=false, key_T=false, key_Z=false;
+bool key_E=false, key_G=false, key_H=false, key_O=false, key_P=false, key_Q=false, key_T=false, key_Z=false; // set key_P=true to autostart simulation
 bool key_1=false, key_2=false, key_3=false, key_4=false, key_5=false, key_6=false, key_7=false, key_8=false, key_9=false, key_0=false;
 
 const uint light_sources_N = 100u; // maximal number of light sources
@@ -511,6 +511,15 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 #ifdef GRAPHICS_CONSOLE
 int main(int argc, char* argv[]) { // call WinMain from dummy main function in order to have an additional console window
 	main_arguments = get_main_arguments(argc, argv);
+	// Check for --autostart command line argument
+	for(size_t i = 0; i < main_arguments.size(); i++) {
+		if(main_arguments[i] == "--autostart") {
+			key_P = true; // Start simulation automatically
+			break;
+		}
+	}
+	// Alternative: Always autostart by uncommenting the line below
+	// key_P = true;
 	return WinMain(GetModuleHandle(0), 0, GetCommandLineA(), SW_SHOWMINIMIZED);
 }
 #endif // GRAPHICS_CONSOLE
@@ -682,6 +691,15 @@ void input_detection() {
 }
 int main(int argc, char* argv[]) {
 	main_arguments = get_main_arguments(argc, argv);
+	// Check for --autostart command line argument
+	for(size_t i = 0; i < main_arguments.size(); i++) {
+		if(main_arguments[i] == "--autostart") {
+			key_P = true; // Start simulation automatically
+			break;
+		}
+	}
+	// Alternative: Always autostart by uncommenting the line below
+	// key_P = true;
 
 	XInitThreads();
 	x11_display = XOpenDisplay(0);
@@ -776,6 +794,15 @@ void input_detection() {
 }
 int main(int argc, char* argv[]) {
 	main_arguments = get_main_arguments(argc, argv);
+	// Check for --autostart command line argument
+	for(size_t i = 0; i < main_arguments.size(); i++) {
+		if(main_arguments[i] == "--autostart") {
+			key_P = true; // Start simulation automatically
+			break;
+		}
+	}
+	// Alternative: Always autostart by uncommenting the line below
+	// key_P = true;
 	camera = Camera(384u, 216u, 60u); // width and height must be divisible by 8
 	thread compute_thread(main_physics); // start main_physics() in a new thread
 	thread input_thread(input_detection);
@@ -805,6 +832,15 @@ int main(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	main_arguments = get_main_arguments(argc, argv);
+	// Check for --autostart command line argument
+	for(size_t i = 0; i < main_arguments.size(); i++) {
+		if(main_arguments[i] == "--autostart") {
+			key_P = true; // Start simulation automatically
+			break;
+		}
+	}
+	// Alternative: Always autostart by uncommenting the line below
+	// key_P = true;
 	camera = Camera(GRAPHICS_FRAME_WIDTH, GRAPHICS_FRAME_HEIGHT, 60u); // width and height must be divisible by 8
 	thread compute_thread(main_physics); // start main_physics() in a new thread
 	while(running) {
