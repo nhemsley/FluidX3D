@@ -161,7 +161,7 @@
 | Key                       | Function                                                                                                                           |
 | :-----------------------: | :--------------------------------------------------------------------------------------------------------------------------------- |
 |                           |                                                                                                                                    |
-| <kbd>P</kbd>              | start/pause the simulation                                                                                                         |
+| <kbd>P</kbd>              | start/pause the simulation (or use `--autostart` command line argument to start automatically)                                     |
 | <kbd>H</kbd>              | show/hide help menu for keyboard controls and visualization settings                                                               |
 | <kbd>Esc</kbd><br><kbd>Alt</kbd>+<kbd>F4</kbd> | quit                                                                                                          |
 |                           |                                                                                                                                    |
@@ -293,6 +293,16 @@
   ```
   Here `lbm_omega` is the angular velocity in radians per time step, `lbm_dt` is the number of simulated time steps between revoxelizations, and `float3(0.0f, 0.0f, lbm_omega)` is the instantaneous angular velocity as a vector along the axis of rotation. The largest displacement of the outermost cells should not exceed `1` cell between revoxelizations; set `lbm_omega = lbm_u/lbm_radius` accordingly.
 - Have a look at the "[Cessna 172](src/setup.cpp)" and "[Bell 222](src/setup.cpp)" setups for some examples.
+- For loading bathymetry or terrain from STL files, use the `--load-bathymetry` command line argument:
+  ```bash
+  ./FluidX3D --load-bathymetry path/to/bathymetry.stl
+  ```
+  This automatically sets the domain size based on the STL bounding box and voxelizes the geometry as solid boundaries. See the [bathymetry loading documentation](docs/bathymetry_loading.md) for details.
+- To automatically start the simulation in interactive graphics mode without pressing <kbd>P</kbd>, use the `--autostart` command line argument:
+  ```bash
+  ./FluidX3D --autostart
+  ```
+  This can be combined with other arguments like `--load-bathymetry` or surface export options.
 
 ### Video Rendering
 - For video rendering, disable (comment out) [`INTERACTIVE_GRAPHICS`](src/defines.hpp) and [`INTERACTIVE_GRAPHICS_ASCII`](src/defines.hpp) and enable (uncomment) [`GRAPHICS`](src/defines.hpp) in [`src/defines.hpp`](src/defines.hpp).

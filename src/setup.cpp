@@ -1035,21 +1035,102 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 
 
 void main_setup() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS, SURFACE_EXPORT
+	// Usage: ./FluidX3D --load-bathymetry path/to/bathymetry.stl
+	// The domain size will be automatically set based on the STL bounding box
+	// Use --autostart command line argument or uncomment the line below to start simulation automatically
+	key_P = true; // autostart simulation in interactive graphics mode
 	// ################################################################## define simulation box size, viscosity and volume force ###################################################################
 	const float f = 0.001f; // make smaller
 	const float u = 0.12f; // peak velocity of speaker membrane
 	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
-	LBM lbm(128u, 640u, 96u, 0.01f, 0.0f, 0.0f, -f);
+
+	// Check for --load-bathymetry command line argument
+	string bathymetry_file = "";
+	for(size_t i = 0; i < main_arguments.size(); i++) {
+		if(main_arguments[i] == "--load-bathymetry" && i + 1 < main_arguments.size()) {
+			bathymetry_file = main_arguments[i + 1];
+			break;
+		}
+	}
+
+	// Default domain parameters
+	uint Nx = 128u, Ny = 640u, Nz = 96u;
+
+	if(!bathymetry_file.empty()) {
+		// Load bathymetry STL file
+		println("Loading bathymetry from: " + bathymetry_file);
+		Mesh* bathymetry_mesh = read_stl(bathymetry_file, 1.0f); // Load without auto-scaling
+
+		// Get bounding box of the bathymetry
+		const float3 mesh_size = bathymetry_mesh->get_bounding_box_size();
+		const float3 mesh_center = bathymetry_mesh->get_bounding_box_center();
+
+		println("Bathymetry bounding box:");
+		println("  Min: " + to_string(bathymetry_mesh->pmin.x) + ", " + to_string(bathymetry_mesh->pmin.y) + ", " + to_string(bathymetry_mesh->pmin.z));
+		println("  Max: " + to_string(bathymetry_mesh->pmax.x) + ", " + to_string(bathymetry_mesh->pmax.y) + ", " + to_string(bathymetry_mesh->pmax.z));
+		println("  Size: " + to_string(mesh_size.x) + " x " + to_string(mesh_size.y) + " x " + to_string(mesh_size.z));
+
+		// Add some padding around the bathymetry (10% on each side)
+		const float padding = 0.1f;
+		const float3 domain_size = mesh_size * (1.0f + 2.0f * padding);
+
+		// Calculate grid resolution based on domain size, targeting ~2-4GB VRAM usage
+		const float target_vram_mb = 2000.0f; // Target 2GB VRAM usage
+		const float cells_per_mb = 1000000.0f / 320.0f; // Approximate cells per MB for FP16S
+		const float total_cells = target_vram_mb * cells_per_mb;
+
+		// Calculate resolution maintaining aspect ratio
+		const float aspect_xy = domain_size.x / domain_size.y;
+		const float aspect_xz = domain_size.x / domain_size.z;
+		Nx = (uint)(cbrt(total_cells * aspect_xy * aspect_xz));
+		Ny = (uint)(Nx / aspect_xy);
+		Nz = (uint)(Nx / aspect_xz);
+
+		println("Domain resolution: " + to_string(Nx) + " x " + to_string(Ny) + " x " + to_string(Nz));
+
+		delete bathymetry_mesh; // Clean up temporary mesh
+	}
+
+	// Create LBM with determined size
+	LBM lbm(Nx, Ny, Nz, 0.01f, 0.0f, 0.0f, -f);
+
+	// If bathymetry file was provided, load and voxelize it
+	if(!bathymetry_file.empty()) {
+		Mesh* bathymetry_mesh = read_stl(bathymetry_file, 1.0f); // Reload the mesh
+
+		// Translate bathymetry to fit in the domain with padding
+		const float3 mesh_size = bathymetry_mesh->get_bounding_box_size();
+		const float padding = 0.1f;
+		const float3 domain_min = lbm.center() - 0.5f * lbm.size();
+		const float3 mesh_offset = domain_min + padding * mesh_size - bathymetry_mesh->pmin;
+		bathymetry_mesh->translate(mesh_offset);
+
+		// Voxelize the bathymetry as solid geometry
+		lbm.voxelize_mesh_on_device(bathymetry_mesh, TYPE_S);
+		delete bathymetry_mesh;
+	}
+
 	// ###################################################################################### define geometry ######################################################################################
-	const uint Nx=lbm.get_Nx(), Ny=lbm.get_Ny(), Nz=lbm.get_Nz(); parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
-		const uint H = Nz/2u;
-		if(z<H) {
+	const uint lbm_Nx=lbm.get_Nx(), lbm_Ny=lbm.get_Ny(), lbm_Nz=lbm.get_Nz(); parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
+		const uint H = lbm_Nz/2u;
+		if(lbm.flags[n]!=TYPE_S && z<H) { // Only set fluid if not already solid from bathymetry
 			lbm.flags[n] = TYPE_F;
 			lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)H);
 		}
-		if(plane(x, y, z, float3(lbm.center().x, 128.0f, 0.0f), float3(0.0f, -1.0f, 8.0f))) lbm.flags[n] = TYPE_S;
-		if(x==0u||x==Nx-1u||y==0u||y==Ny-1u||z==0u||z==Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
-		if(y==0u && x>0u&&x<Nx-1u&&z>0u&&z<Nz-1u) lbm.flags[n] = TYPE_E;
+		if(!bathymetry_file.empty()) {
+			// When using bathymetry, only set boundaries on domain edges
+			if(x==0u||x==lbm_Nx-1u||y==0u||y==lbm_Ny-1u||z==0u||z==lbm_Nz-1u) {
+				if(lbm.flags[n]!=TYPE_S) lbm.flags[n] = TYPE_S; // all non periodic
+			}
+			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u && lbm.flags[n]!=TYPE_S) {
+				lbm.flags[n] = TYPE_E; // equilibrium boundary for wave generation
+			}
+		} else {
+			// Default beach slope when no bathymetry is loaded
+			if(plane(x, y, z, float3(lbm.center().x, 128.0f, 0.0f), float3(0.0f, -1.0f, 8.0f))) lbm.flags[n] = TYPE_S;
+			if(x==0u||x==lbm_Nx-1u||y==0u||y==lbm_Ny-1u||z==0u||z==lbm_Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
+			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u) lbm.flags[n] = TYPE_E;
+		}
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
 	// lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
 
@@ -1073,10 +1154,10 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		lbm.u.read_from_device();
 		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
 		const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
-		for(uint z=1u; z<Nz-1u; z++) {
+		for(uint z=1u; z<lbm_Nz-1u; z++) {
 			for(uint y=0u; y<1u; y++) {
-				for(uint x=1u; x<Nx-1u; x++) {
-					const uint n = x+(y+z*Ny)*Nx;
+				for(uint x=1u; x<lbm_Nx-1u; x++) {
+					const uint n = x+(y+z*lbm_Ny)*lbm_Nx;
 					lbm.u.y[n] = uy;
 					lbm.u.z[n] = uz;
 				}
