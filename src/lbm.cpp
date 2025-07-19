@@ -254,13 +254,15 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	// Free existing memory if already allocated
 	if(surface_memory_allocated) {
 		printf("DEBUG: Freeing existing surface memory\n");
-		surface_vertices = Memory<float>(); // Reset to free memory
+		// Don't reassign the Memory object yet, just mark for reallocation
 	}
 	
 	// Allocate memory for surface vertices (9 floats per triangle - 3 vertices, each with xyz)
 	ulong memory_size_bytes = max_triangles * 9ull * sizeof(float);
 	printf("DEBUG: Allocating %.2f MB for surface vertices (%lu triangles)\n", 
 		(float)memory_size_bytes/(1024.0f*1024.0f), max_triangles);
+	
+	// Create new memory buffer and move it to surface_vertices
 	surface_vertices = Memory<float>(device, max_triangles*9ull, true, "surface_vertices");
 	
 	// Set up kernel for exporting surface if not already initialized
@@ -268,10 +270,9 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 		printf("DEBUG: Initializing export_surface kernel\n");
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
 	} else {
-		// Update the kernel with the new buffer
-		printf("DEBUG: Updating export_surface kernel parameters with new buffer\n");
-		kernel_export_surface.set_parameters(1u, surface_vertices);
-		kernel_export_surface.set_parameters(3u, max_triangles);
+		// For reallocation, we need to recreate the kernel with the new buffer
+		printf("DEBUG: Recreating export_surface kernel with new buffer\n");
+		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
 	}
 	
 	surface_memory_allocated = true;
