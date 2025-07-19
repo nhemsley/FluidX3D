@@ -384,6 +384,48 @@
   lbm.write_mesh_to_vtk(const Mesh* mesh);
   ```
 
+### Surface Export
+- To export the fluid surface mesh to STL files during simulation, enable both the [`SURFACE`](src/defines.hpp) and [`SURFACE_EXPORT`](src/defines.hpp) extensions.
+- The surface export feature allows you to save the fluid surface as triangle meshes, which can be imported into external software like Blender, ParaView, or other 3D tools for visualization and analysis.
+- There are two ways to use surface export:
+
+#### Method 1: Automatic Export with `run_with_surface_export()`
+- Use this convenience function to automatically export surfaces at regular intervals:
+  ```c
+  lbm.run_with_surface_export(1000u); // run 1000 steps, exporting surface every export_interval steps
+  ```
+- Configure the export settings before calling this function:
+  ```c
+  lbm.surface_export_config.export_surface = true; // enable surface export
+  lbm.surface_export_config.export_path = get_exe_path()+"export/surface/"; // set export directory
+  lbm.surface_export_config.export_interval = 100u; // export every 100 steps
+  lbm.surface_export_config.export_ascii = false; // use binary STL format (smaller files)
+  ```
+
+#### Method 2: Manual Export
+- For more control, manually export the surface at specific points:
+  ```c
+  if(lbm.get_t()%100u==0u) { // export every 100 steps
+      lbm.export_surface_to_stl(get_exe_path()+"export/surface/"); // export to directory
+  }
+  ```
+
+#### Command-Line Arguments
+- When running your simulation, you can override export settings via command-line:
+  ```bash
+  ./FluidX3D --export-surface-to="export/surface/" --export-surface-interval=50 --export-surface-ascii
+  ```
+  - `--export-surface-to`: Set the export directory path
+  - `--export-surface-interval`: Set export frequency in time steps
+  - `--export-surface-ascii`: Use ASCII STL format instead of binary
+
+#### Notes
+- Exported files are automatically named with the current time step: `surface-000001000.stl`
+- Binary STL files are much smaller than ASCII format and are recommended for large surfaces
+- The export directory will be created automatically if it doesn't exist
+- Surface export requires the `SURFACE` extension to track the fluid interface
+- Performance impact is minimal as surface extraction happens on the GPU
+
 ### Lift/Drag Forces
 - Enable (uncomment) the [`FORCE_FIELD`](src/defines.hpp) extension. This extension allows computing boundary forces on every solid cell (`TYPE_S`) individually, as well as placing an individual volume force on every fluid cell (not used here).
 - In the [`main_setup()`](src/setup.cpp) function, voxelize the mesh with a unique flag combination, such as `(TYPE_S|TYPE_X)` or `(TYPE_S|TYPE_Y)` or `(TYPE_S|TYPE_X|TYPE_Y)`, to distinguish it from all other `(TYPE_S)` cells that might be needed to define other geometry, and compute its center of mass:
@@ -424,6 +466,7 @@ By now you're already familiar with the [additional boundary types](#initial-and
   The interface layer will be automatically initialized during initialization with `lbm.run(0u)`.
 - Addidionally to the 3 flags, each cell also gets assigned a fill level `lbm.phi[n]`: `1` for fluid cells (`TYPE_F`), `]0,1[` for interface cells (`TYPE_I`), and `0` for gas cells (`TYPE_G`). You can set this fill level at initialization, additionally to the cell flag. Do not forget to set the cell flag. If `lbm.phi[n]` is not set manually, it will automatically be initialized such that all fluid cells get `phi=1`, all interface cells get `phi=0.5`, and all gas clls get `phi=0` assigned.
 - For a simple example, see the "[dam break](src/setup.cpp)" setup. A more advanced sample setup for free surfaces is the "[raindrop impact](src/setup.cpp)".
+- With the [`SURFACE_EXPORT`](src/defines.hpp) extension enabled alongside `SURFACE`, you can export the fluid surface mesh to STL files during simulation. See the [Surface Export](#surface-export) section for details.
 
 ### [`TEMPERATURE`](src/defines.hpp) Extension
 - With the [`TEMPERATURE`](src/defines.hpp) extension, FluidX3D can model thermal convection flows. This extension automatically also enables the [`VOLUME_FORCE`](src/defines.hpp) extension.

@@ -219,6 +219,11 @@ The fastest and most memory efficient lattice Boltzmann CFD software, running on
   - improved coloring in `VIS_FIELD`/`ray_grid_traverse_sum()`
   - updated OpenCL-Wrapper now compiles OpenCL C code with `-cl-std=CL3.0` if available
   - fixed compiling on macOS with new OpenCL headers
+- [v3.3](https://github.com/ProjectPhysX/FluidX3D/releases/tag/v3.3) (upcoming) [changes](https://github.com/ProjectPhysX/FluidX3D/compare/v3.2...v3.3) (surface export)
+  - added fluid surface export to STL files (binary/ASCII) during simulation
+  - surface export can be triggered automatically at intervals or manually
+  - supports command-line arguments for batch processing: `--export-surface-to`, `--export-surface-interval`, `--export-surface-ascii`
+  - requires `SURFACE` and `SURFACE_EXPORT` extensions to be enabled
 
 </details>
 
@@ -424,6 +429,7 @@ $$f_j(i\\%2\\ ?\\ \vec{x}+\vec{e}_i\\ :\\ \vec{x},\\ t+\Delta t)=f_i^\textrm{tem
     - [fully analytic PLIC](https://doi.org/10.3390/computation10020021) for efficient curvature calculation
     - improved mass conservation
     - ultra efficient implementation with only [4 kernels](https://doi.org/10.3390/computation10060092) additionally to `stream_collide()` kernel
+    - surface export to STL files (binary/ASCII) during simulation with automatic or manual triggering
   - thermal LBM to simulate thermal convection
     - D3Q7 subgrid for thermal DDFs
     - in-place streaming with [Esoteric-Pull](https://doi.org/10.3390/computation10060092) for thermal DDFs
@@ -473,6 +479,7 @@ $$f_j(i\\%2\\ ?\\ \vec{x}+\vec{e}_i\\ :\\ \vec{x},\\ t+\Delta t)=f_i^\textrm{tem
 - supports [importing and voxelizing triangle meshes](DOCUMENTATION.md#loading-stl-files) from binary `.stl` files, with fast GPU voxelization
 - supports [exporting volumetric data](DOCUMENTATION.md#data-export) as binary `.vtk` files
 - supports [exporting triangle meshes](DOCUMENTATION.md#data-export) as binary `.vtk` files
+- supports [exporting fluid surface meshes](DOCUMENTATION.md#surface-export) as binary/ASCII `.stl` files during simulation
 - supports [exporting rendered images](DOCUMENTATION.md#video-rendering) as `.png`/`.qoi`/`.bmp` files; encoding runs in parallel on the CPU while the simulation on GPU can continue without delay
 
 

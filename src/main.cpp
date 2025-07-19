@@ -1,6 +1,9 @@
 #include "info.hpp"
 #include "lbm.hpp"
 #include "setup.hpp"
+#ifdef SURFACE_EXPORT
+#include "stl_export.hpp"
+#endif // SURFACE_EXPORT
 
 #ifdef GRAPHICS
 void draw_scale(const int field_mode, const int color) {
@@ -153,6 +156,91 @@ void main_graphics() {
 	}
 #else
 
+#ifdef SURFACE_EXPORT
+	SurfaceExportConfig surface_export_config; // global surface export configuration
+	
+	// Export a single surface frame to STL file
+	// This function is called internally by run_with_surface_export()
+	void export_surface_frame(LBM* lbm, ulong timestep) {
+		if(!surface_export_config.enabled || !lbm) return;
+		if(!surface_export_config.should_export(timestep)) return;
+		
+		// Check if SURFACE and EXPORT_SURFACE are enabled
+#if !defined(SURFACE) || !defined(EXPORT_SURFACE)
+		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
+		surface_export_config.enabled = false;
+		return;
+#else
+		// Export the surface
+		lbm->enqueue_export_surface();
+		float* vertices = lbm->get_surface_vertices();
+		ulong triangle_count = lbm->get_triangle_count();
+		
+		if(triangle_count > 0u && vertices != nullptr) {
+			string filename = surface_export_config.get_filename(timestep);
+			write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
+		}
+		
+		// No need to delete vertices - it's an internal pointer from Memory class
+#endif // SURFACE && EXPORT_SURFACE
+	}
+	
+	// Convenience function to run simulation with periodic surface export
+	// Usage: run_with_surface_export(&lbm) or run_with_surface_export(&lbm, 1000u)
+	// Command line arguments:
+	//   --export-surface-to <directory>      Directory to save STL files (required for export)
+	//   --export-surface-interval <N>        Export every N timesteps (optional, default: 100)
+	//   --export-surface-ascii               Use ASCII STL format (optional, default: binary)
+	// Example: ./FluidX3D --export-surface-to ./output/ --export-surface-interval 50
+	// Note: Requires SURFACE and EXPORT_SURFACE extensions to be enabled in defines.hpp
+	void run_with_surface_export(LBM* lbm, const ulong steps) {
+		if(!surface_export_config.enabled) {
+			// Just run normally if surface export is not enabled
+			lbm->run(steps);
+			return;
+		}
+		
+#if !defined(SURFACE) || !defined(EXPORT_SURFACE)
+		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
+		surface_export_config.enabled = false;
+		lbm->run(steps);
+		return;
+#else
+		// Initialize simulation
+		lbm->run(0u);
+		
+		// Export initial state if needed
+		if(surface_export_config.should_export(0u)) {
+			export_surface_frame(lbm, 0u);
+		}
+		
+		// Run simulation with periodic exports
+		const ulong start_t = lbm->get_t();
+		const ulong end_t = (steps == max_ulong) ? max_ulong : start_t + steps;
+		
+		while(lbm->get_t() < end_t) {
+			// Calculate steps until next export or end
+			const ulong current_t = lbm->get_t();
+			const ulong next_export = ((current_t / surface_export_config.export_interval) + 1u) * surface_export_config.export_interval;
+			const ulong steps_to_run = min(next_export - current_t, end_t - current_t);
+			
+			if(steps_to_run == 0u) break;
+			
+			// Run simulation steps
+			lbm->run(steps_to_run);
+			
+			// Export if we're at an export interval
+			if(surface_export_config.should_export(lbm->get_t())) {
+				export_surface_frame(lbm, lbm->get_t());
+			}
+			
+			// Check if we should continue (for infinite runs)
+			if(steps == max_ulong && !running) break;
+		}
+#endif // SURFACE && EXPORT_SURFACE
+	}
+#endif // SURFACE_EXPORT
+
 	void main_physics() {
 		info.print_logo();
 		main_setup(); // execute setup
@@ -164,6 +252,9 @@ void main_graphics() {
 	int main(int argc, char* argv[]) {
 		info.allow_printing.lock();
 		main_arguments = get_main_arguments(argc, argv);
+#ifdef SURFACE_EXPORT
+		surface_export_config.parse_arguments(main_arguments); // parse surface export command line arguments
+#endif // SURFACE_EXPORT
 		thread compute_thread(main_physics);
 		info.allow_printing.unlock();
 		do { // main console loop

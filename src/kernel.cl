@@ -4332,12 +4332,94 @@ kernel void graphics_raytrace_phi(const global float *camera,
 
 #ifdef EXPORT_SURFACE
 kernel void count_surface_triangles(const global float *phi, global uint *triangle_count) {
-  // Empty implementation placeholder
+  const uxx n = get_global_id(0);
+  if(n >= def_N) return;
+
+  // Get 3D coordinates
+  const uint3 xyz = coordinates(n);
+  const uint x = xyz.x;
+  const uint y = xyz.y;
+  const uint z = xyz.z;
+
+  // Skip boundary cells
+  if(x >= def_Nx-1u || y >= def_Ny-1u || z >= def_Nz-1u) return;
+
+  // Get indices of 8 cube corners
+  const uxx x0 = (uxx)x, xp = (uxx)(x+1u);
+  const uxx y0 = (uxx)(y*def_Nx), yp = (uxx)((y+1u)*def_Nx);
+  const uxx z0 = (uxx)(z)*(uxx)(def_Ny*def_Nx), zp = (uxx)(z+1u)*(uxx)(def_Ny*def_Nx);
+
+  float v[8];
+  v[0] = phi[x0+y0+z0]; v[1] = phi[xp+y0+z0];
+  v[2] = phi[xp+y0+zp]; v[3] = phi[x0+y0+zp];
+  v[4] = phi[x0+yp+z0]; v[5] = phi[xp+yp+z0];
+  v[6] = phi[xp+yp+zp]; v[7] = phi[x0+yp+zp];
+
+  // Check if cube intersects surface
+  float3 triangles[15];
+  const uint tn = marching_cubes(v, 0.5f, triangles);
+
+  if(tn > 0u) {
+    atomic_add(triangle_count, tn);
+  }
 }
 
-kernel void export_surface(const global float *phi, global float *vertices, 
+kernel void export_surface(const global float *phi, global float *vertices,
                           global uint *triangle_count, const ulong max_triangles) {
-  // Empty implementation placeholder
+  const uxx n = get_global_id(0);
+  if(n >= def_N) return;
+
+  // Get 3D coordinates
+  const uint3 xyz = coordinates(n);
+  const uint x = xyz.x;
+  const uint y = xyz.y;
+  const uint z = xyz.z;
+
+  // Skip boundary cells
+  if(x >= def_Nx-1u || y >= def_Ny-1u || z >= def_Nz-1u) return;
+
+  // Get indices of 8 cube corners
+  const uxx x0 = (uxx)x, xp = (uxx)(x+1u);
+  const uxx y0 = (uxx)(y*def_Nx), yp = (uxx)((y+1u)*def_Nx);
+  const uxx z0 = (uxx)(z)*(uxx)(def_Ny*def_Nx), zp = (uxx)(z+1u)*(uxx)(def_Ny*def_Nx);
+
+  float v[8];
+  v[0] = phi[x0+y0+z0]; v[1] = phi[xp+y0+z0];
+  v[2] = phi[xp+y0+zp]; v[3] = phi[x0+y0+zp];
+  v[4] = phi[x0+yp+z0]; v[5] = phi[xp+yp+z0];
+  v[6] = phi[xp+yp+zp]; v[7] = phi[x0+yp+zp];
+
+  // Get triangles from marching cubes
+  float3 triangles[15];
+  const uint tn = marching_cubes(v, 0.5f, triangles);
+
+  if(tn > 0u) {
+    // Atomically reserve space in output buffer
+    const uint base_index = atomic_add(triangle_count, tn);
+
+    // Check buffer overflow
+    if(base_index + tn > max_triangles) return;
+
+    // Write triangles to global memory
+    const float3 offset = (float3)((float)x, (float)y, (float)z);
+    for(uint i = 0u; i < tn; i++) {
+      const uint vertex_index = (base_index + i) * 9u;
+      const float3 p0 = triangles[3u*i] + offset;
+      const float3 p1 = triangles[3u*i+1u] + offset;
+      const float3 p2 = triangles[3u*i+2u] + offset;
+
+      // Write triangle vertices (9 floats per triangle)
+      vertices[vertex_index+0u] = p0.x;
+      vertices[vertex_index+1u] = p0.y;
+      vertices[vertex_index+2u] = p0.z;
+      vertices[vertex_index+3u] = p1.x;
+      vertices[vertex_index+4u] = p1.y;
+      vertices[vertex_index+5u] = p1.z;
+      vertices[vertex_index+6u] = p2.x;
+      vertices[vertex_index+7u] = p2.y;
+      vertices[vertex_index+8u] = p2.z;
+    }
+  }
 }
 #endif // EXPORT_SURFACE
 

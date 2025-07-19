@@ -613,4 +613,23 @@ public:
 	}; // Graphics
 	Graphics graphics;
 #endif // GRAPHICS
+
+#ifdef EXPORT_SURFACE
+	void enqueue_export_surface() { // export surface mesh using marching cubes
+		for(uint d=0u; d<get_D(); d++) {
+			lbm_domain[d]->enqueue_export_surface();
+		}
+	}
+	ulong get_triangle_count() { // get actual number of triangles in the surface mesh
+		ulong total = 0ull;
+		for(uint d=0u; d<get_D(); d++) {
+			total += lbm_domain[d]->get_triangle_count();
+		}
+		return total;
+	}
+	float* get_surface_vertices() { // get pointer to surface vertices buffer (in host memory)
+		// For now, just return from first domain - multi-GPU surface export would need more work
+		return lbm_domain[0]->get_surface_vertices();
+	}
+#endif // EXPORT_SURFACE
 }; // LBM
