@@ -205,10 +205,10 @@ void LBM_Domain::count_surface_triangles() {
 	// Initialize the counter kernel if not already done
 	if(!kernel_count_surface_triangles.is_initialized()) {
 		printf("DEBUG: Initializing count_surface_triangles kernel and counter memory\n");
-		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count);
-		
-		// Initialize the counter
+		// Initialize the counter memory first
 		surface_count = Memory<uint>(device, 1u, true, "surface_count");
+		// Then create the kernel with the valid memory reference
+		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count);
 	}
 	
 	// Reset the counter
@@ -248,8 +248,8 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	printf("DEBUG: %s surface memory for %lu triangles\n", 
 		surface_memory_allocated ? "Reallocating" : "Allocating initial", triangle_count);
 	
-	// Set the max triangles
-	max_triangles = triangle_count;
+	// Set the max triangles (allocate at least 1 to avoid 0-size allocation)
+	max_triangles = max(triangle_count, 1ull);
 	
 	// Free existing memory if already allocated
 	if(surface_memory_allocated) {
@@ -270,7 +270,8 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	} else {
 		// Update the kernel with the new buffer
 		printf("DEBUG: Updating export_surface kernel parameters with new buffer\n");
-		kernel_export_surface.set_parameters(2u, surface_vertices, max_triangles);
+		kernel_export_surface.set_parameters(1u, surface_vertices);
+		kernel_export_surface.set_parameters(3u, max_triangles);
 	}
 	
 	surface_memory_allocated = true;
@@ -584,6 +585,10 @@ string LBM_Domain::device_defines() const { return
 	"\n	#define SURFACE"
 	"\n	#define def_6_sigma "+to_string(6.0f*sigma)+"f" // rho_laplace = 2*o*K, rho = 1-rho_laplace/c^2 = 1-(6*o)*K
 #endif // SURFACE
+
+#ifdef EXPORT_SURFACE
+	"\n	#define EXPORT_SURFACE"
+#endif // EXPORT_SURFACE
 
 #ifdef TEMPERATURE
 	"\n	#define TEMPERATURE"
