@@ -1034,7 +1034,7 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 
 
 
-/*void main_setup() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS
+void main_setup() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS, SURFACE_EXPORT
 	// ################################################################## define simulation box size, viscosity and volume force ###################################################################
 	const float f = 0.001f; // make smaller
 	const float u = 0.12f; // peak velocity of speaker membrane
@@ -1051,9 +1051,25 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 		if(x==0u||x==Nx-1u||y==0u||y==Ny-1u||z==0u||z==Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
 		if(y==0u && x>0u&&x<Nx-1u&&z>0u&&z<Nz-1u) lbm.flags[n] = TYPE_E;
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
-	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+	// lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+
+#ifdef SURFACE_EXPORT
+	// Configure surface export settings
+	surface_export_config.enabled = true;
+	surface_export_config.directory = get_exe_path()+"export/surface/";
+	surface_export_config.export_interval = 1000u; // export every 1000 timesteps
+	surface_export_config.ascii_format = false; // use binary STL format
+#endif // SURFACE_EXPORT
+
 	lbm.run(0u); // initialize simulation
-	while(true) { // main simulation loop
+
+#ifdef SURFACE_EXPORT
+	// Export initial surface state
+	export_surface_frame(&lbm, 0u);
+#endif // SURFACE_EXPORT
+
+	const ulong max_timesteps = 10000u; // run for 10000 timesteps
+	while(lbm.get_t() < max_timesteps) { // main simulation loop
 		lbm.u.read_from_device();
 		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
 		const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
@@ -1068,8 +1084,16 @@ void main_setup() { // benchmark; required extensions in defines.hpp: BENCHMARK,
 		}
 		lbm.u.write_to_device();
 		lbm.run(100u);
+
+#ifdef SURFACE_EXPORT
+		// Export surface at configured intervals
+		if(surface_export_config.should_export(lbm.get_t())) {
+			export_surface_frame(&lbm, lbm.get_t());
+			println("Exported surface at timestep "+to_string(lbm.get_t()));
+		}
+#endif // SURFACE_EXPORT
 	}
-} /**/
+}
 
 
 
