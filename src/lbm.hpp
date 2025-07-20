@@ -56,12 +56,12 @@ private:
 	Memory<float> mass; // fluid mass; phi=mass/rho
 	Memory<float> massex; // excess mass; used for mass conservation
 #endif // SURFACE
-#ifdef EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
 	Kernel kernel_export_surface; // kernel for exporting surface triangles using marching cubes
 	Memory<float> surface_vertices; // buffer to store surface mesh vertices (x,y,z for each vertex of each triangle)
 	Memory<uint> surface_count; // counter for the actual number of triangles used
 	ulong max_triangles; // maximum number of triangles the buffer can hold
-#endif // EXPORT_SURFACE
+#endif // SURFACE_EXPORT
 #ifdef TEMPERATURE
 	Memory<fpxx> gi; // thermal DDFs
 #endif // TEMPERATURE
@@ -108,7 +108,7 @@ public:
 	void enqueue_surface_2();
 	void enqueue_surface_3();
 #endif // SURFACE
-#ifdef EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
 	Kernel kernel_count_surface_triangles; // kernel for counting triangles without storing them
 	void count_surface_triangles(); // run kernel to count triangles and allocate memory
 	void allocate_surface_memory(ulong triangle_count); // allocate memory for exporting surface mesh
@@ -120,7 +120,7 @@ public:
 private:
 	bool surface_memory_allocated = false; // flag to track if surface memory has been allocated
 public:
-#endif // EXPORT_SURFACE
+#endif // SURFACE_EXPORT
 #ifdef FORCE_FIELD
 	void enqueue_update_force_field(); // calculate forces from fluid on TYPE_S cells
 	void enqueue_object_center_of_mass(const uchar flag_marker=TYPE_S); // calculate center of mass of all cells flagged with flag_marker
@@ -614,7 +614,7 @@ public:
 	Graphics graphics;
 #endif // GRAPHICS
 
-#ifdef EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
 	void enqueue_export_surface() { // export surface mesh using marching cubes
 		for(uint d=0u; d<get_D(); d++) {
 			lbm_domain[d]->enqueue_export_surface();
@@ -631,5 +631,5 @@ public:
 		// For now, just return from first domain - multi-GPU surface export would need more work
 		return lbm_domain[0]->get_surface_vertices();
 	}
-#endif // EXPORT_SURFACE
+#endif // SURFACE_EXPORT
 }; // LBM

@@ -165,9 +165,9 @@ void main_graphics() {
 		if(!surface_export_config.enabled || !lbm) return;
 		if(!surface_export_config.should_export(timestep)) return;
 
-		// Check if SURFACE and EXPORT_SURFACE are enabled
-#if !defined(SURFACE) || !defined(EXPORT_SURFACE)
-		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
+		// Check if SURFACE and SURFACE_EXPORT are enabled
+#if !defined(SURFACE) || !defined(SURFACE_EXPORT)
+		print_error("Surface export requires SURFACE and SURFACE_EXPORT extensions to be enabled.");
 		surface_export_config.enabled = false;
 		return;
 #else
@@ -182,7 +182,7 @@ void main_graphics() {
 		}
 
 		// No need to delete vertices - it's an internal pointer from Memory class
-#endif // SURFACE && EXPORT_SURFACE
+#endif // SURFACE && SURFACE_EXPORT
 	}
 
 	// Convenience function to run simulation with periodic surface export
@@ -192,7 +192,7 @@ void main_graphics() {
 	//   --export-surface-interval <N>        Export every N timesteps (optional, default: 100)
 	//   --export-surface-ascii               Use ASCII STL format (optional, default: binary)
 	// Example: ./FluidX3D --export-surface-to ./output/ --export-surface-interval 50
-	// Note: Requires SURFACE and EXPORT_SURFACE extensions to be enabled in defines.hpp
+	// Note: Requires SURFACE and SURFACE_EXPORT extensions to be enabled in defines.hpp
 	void run_with_surface_export(LBM* lbm, const ulong steps) {
 		if(!surface_export_config.enabled) {
 			// Just run normally if surface export is not enabled
@@ -200,8 +200,8 @@ void main_graphics() {
 			return;
 		}
 
-#if !defined(SURFACE) || !defined(EXPORT_SURFACE)
-		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
+#if !defined(SURFACE) || !defined(SURFACE_EXPORT)
+		print_error("Surface export requires SURFACE and SURFACE_EXPORT extensions to be enabled.");
 		surface_export_config.enabled = false;
 		lbm->run(steps);
 		return;
@@ -237,7 +237,7 @@ void main_graphics() {
 			// Check if we should continue (for infinite runs)
 			if(steps == max_ulong && !running) break;
 		}
-#endif // SURFACE && EXPORT_SURFACE
+#endif // SURFACE && SURFACE_EXPORT
 	}
 #endif // SURFACE_EXPORT
 

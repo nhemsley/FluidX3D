@@ -14,8 +14,7 @@ To use the surface export feature, you must enable the following extensions in `
 
 ```cpp
 #define SURFACE         // Required: enables free surface LBM
-#define EXPORT_SURFACE  // Required: enables surface mesh export from GPU
-#define SURFACE_EXPORT  // Required: enables STL file writing functionality
+#define SURFACE_EXPORT  // Required: enables surface mesh export from GPU and STL file writing functionality
 ```
 
 ## Usage
@@ -126,7 +125,7 @@ Where `XXXXXX` is the zero-padded timestep number. For example:
 
 ### No Output Files
 - Ensure `--export-surface-to` directory is specified
-- Check that SURFACE, EXPORT_SURFACE, and SURFACE_EXPORT are all defined
+- Check that SURFACE and SURFACE_EXPORT are defined
 - Verify the directory has write permissions
 
 ### Empty STL Files

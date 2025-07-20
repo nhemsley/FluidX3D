@@ -4220,7 +4220,7 @@ kernel void graphics_q(const global float *camera, global int *bitmap,
                                bitmap, zbuffer);
   }
 }
-// #ifdef EXPORT_SURFACE
+// #ifdef SURFACE_EXPORT
 
 #ifdef SURFACE
 
@@ -4342,7 +4342,7 @@ kernel void graphics_raytrace_phi(const global float *camera,
 }
 #endif
 
-#ifdef EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
 kernel void count_surface_triangles(const global float *phi, global uint *triangle_count) {
   const uxx n = get_global_id(0);
   if(n >= def_N) return;
@@ -4433,7 +4433,7 @@ kernel void export_surface(const global float *phi, global float *vertices,
     }
   }
 }
-#endif // EXPORT_SURFACE
+#endif // SURFACE_EXPORT
 
 #ifdef PARTICLES
 

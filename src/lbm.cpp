@@ -198,7 +198,7 @@ void LBM_Domain::enqueue_surface_3() {
 }
 #endif // SURFACE
 
-#ifdef EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
 void LBM_Domain::count_surface_triangles() {
 	printf("DEBUG: Counting surface triangles...\n");
 	
@@ -345,7 +345,7 @@ float* LBM_Domain::get_surface_vertices() {
 	printf("DEBUG: Surface vertices read complete\n");
 	return surface_vertices.data();
 }
-#endif // EXPORT_SURFACE
+#endif // SURFACE_EXPORT
 #ifdef FORCE_FIELD
 void LBM_Domain::enqueue_update_force_field() { // calculate forces from fluid on TYPE_S cells
 	if(t!=t_last_force_field) { // only run kernel_update_force_field if the time step has changed since last update
@@ -587,9 +587,9 @@ string LBM_Domain::device_defines() const { return
 	"\n	#define def_6_sigma "+to_string(6.0f*sigma)+"f" // rho_laplace = 2*o*K, rho = 1-rho_laplace/c^2 = 1-(6*o)*K
 #endif // SURFACE
 
-#ifdef EXPORT_SURFACE
-	"\n	#define EXPORT_SURFACE"
-#endif // EXPORT_SURFACE
+#ifdef SURFACE_EXPORT
+	"\n	#define SURFACE_EXPORT"
+#endif // SURFACE_EXPORT
 
 #ifdef TEMPERATURE
 	"\n	#define TEMPERATURE"
