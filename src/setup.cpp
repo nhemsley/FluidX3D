@@ -1039,24 +1039,24 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	// The domain size will be automatically set based on the STL bounding box
 	// Use --autostart command line argument or uncomment the line below to start simulation automatically
 	key_P = true; // autostart simulation in interactive graphics mode
-	
+
 	/* WAVE GENERATION IMPLEMENTATION:
-	 * 
+	 *
 	 * This simulation uses velocity forcing on TYPE_F cells for wave generation,
 	 * which is compatible with free surface flows (SURFACE extension).
-	 * 
+	 *
 	 * APPROACH:
 	 * - No TYPE_E (equilibrium) boundaries are used, avoiding conflicts with free surface
 	 * - Wave velocity is applied directly to TYPE_F (fluid) cells near y=0 boundary
 	 * - Velocity decays with distance from boundary (sponge layer approach)
 	 * - Only fluid cells are updated, respecting bathymetry (TYPE_S cells)
-	 * 
+	 *
 	 * PARAMETERS:
 	 * - Wave height and period are specified in SI units
 	 * - Converted to LBM units using the units system
 	 * - Sinusoidal velocity profile: uy = A*sin(2π*f*t), uz = 0.5*A*cos(2π*f*t)
 	 * - Applied to first 5 cells in y-direction with linear decay
-	 * 
+	 *
 	 * ADVANTAGES:
 	 * - Compatible with free surface tracking
 	 * - Respects solid boundaries from bathymetry
@@ -1071,7 +1071,7 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	const float si_wave_height = 0.2f; // wave height [m]
 	const float si_wave_period = 4.0f; // wave period [s]
 	const float si_cell_size = 0.01f; // physical size of one lattice cell [m]
-	
+
 	// LBM parameters (dimensionless)
 	const float lbm_u = 0.15f; // moderate peak velocity for stable waves
 	const float lbm_rho = 1.0f; // reference density in LBM units
@@ -1132,20 +1132,20 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 
 	// Set up unit conversion based on physical cell size
 	units.set_m_kg_s(1.0f, lbm_u, lbm_rho, si_cell_size, si_wave_height/si_wave_period, si_rho);
-	
+
 	// Convert physical parameters to LBM units
 	const float lbm_nu = units.nu(si_nu); // kinematic viscosity in LBM units
 	const float lbm_g = units.g(si_g); // gravitational acceleration in LBM units
 	const float lbm_f = units.f(si_rho, si_g); // force per volume in LBM units
 	const float lbm_frequency = units.frequency(1.0f/si_wave_period); // wave frequency in LBM units
-	
+
 	// DEBUG: Print wave generation parameters
 	println("Wave generation parameters:");
 	println("  lbm_u (peak velocity): " + to_string(lbm_u));
 	println("  lbm_frequency: " + to_string(lbm_frequency));
 	println("  si_wave_period: " + to_string(si_wave_period) + " s");
 	println("  si_wave_height: " + to_string(si_wave_height) + " m");
-	
+
 	// Create LBM with determined size and converted parameters
 	LBM lbm(Nx, Ny, Nz, lbm_nu, 0.0f, 0.0f, -lbm_f);
 
@@ -1231,26 +1231,26 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		// This approach is compatible with free surface (SURFACE extension)
 		lbm.u.read_from_device();
 		lbm.flags.read_from_device(); // Need to check cell types
-		
+
 		const float uy = lbm_u*sinf(2.0f*pif*lbm_frequency*(float)lbm.get_t());
 		const float uz = 0.5f*lbm_u*cosf(2.0f*pif*lbm_frequency*(float)lbm.get_t());
-		
+
 		// Apply velocity forcing to TYPE_F cells in a layer near y=0
 		// This creates wave motion without using incompatible TYPE_E boundaries
 		const uint wave_layer_thickness = 5u; // Apply forcing to first 5 cells in y direction
-		
+
 		// Debug output every 100 timesteps
 		if(lbm.get_t() % 100u == 0u) {
 			println("Wave generation at timestep " + to_string(lbm.get_t()) + ":");
 			println("  uy = " + to_string(uy) + ", uz = " + to_string(uz));
 		}
-		
+
 		uint fluid_cells_updated = 0u;
 		for(uint z=1u; z<lbm_Nz-1u; z++) {
 			for(uint y=0u; y<wave_layer_thickness; y++) {
 				for(uint x=1u; x<lbm_Nx-1u; x++) {
 					const uint n = x+(y+z*lbm_Ny)*lbm_Nx;
-					
+
 					// Only apply velocity to TYPE_F (fluid) cells
 					if(lbm.flags[n] == TYPE_F) {
 						// Apply forcing with decay based on distance from boundary
@@ -1262,7 +1262,7 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 				}
 			}
 		}
-		
+
 		// Debug output
 		if(lbm.get_t() % 100u == 0u) {
 			println("  Updated " + to_string(fluid_cells_updated) + " fluid cells with wave velocity");
@@ -1278,6 +1278,44 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 			println("Exported surface at timestep "+to_string(lbm.get_t()));
 		}
 #endif // SURFACE_EXPORT
+	}
+}
+
+
+void main_setup_beach() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS
+	// ################################################################## define simulation box size, viscosity and volume force ###################################################################
+	const float f = 0.001f; // make smaller
+	const float u = 0.12f; // peak velocity of speaker membrane
+	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
+	LBM lbm(128u, 640u, 96u, 0.01f, 0.0f, 0.0f, -f);
+	// ###################################################################################### define geometry ######################################################################################
+	const uint Nx=lbm.get_Nx(), Ny=lbm.get_Ny(), Nz=lbm.get_Nz(); parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
+		const uint H = Nz/2u;
+		if(z<H) {
+			lbm.flags[n] = TYPE_F;
+			lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)H);
+		}
+		if(plane(x, y, z, float3(lbm.center().x, 128.0f, 0.0f), float3(0.0f, -1.0f, 8.0f))) lbm.flags[n] = TYPE_S;
+		if(x==0u||x==Nx-1u||y==0u||y==Ny-1u||z==0u||z==Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
+		if(y==0u && x>0u&&x<Nx-1u&&z>0u&&z<Nz-1u) lbm.flags[n] = TYPE_E;
+	}); // ####################################################################### run simulation, export images and data ##########################################################################
+	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+	lbm.run(0u); // initialize simulation
+	while(true) { // main simulation loop
+		lbm.u.read_from_device();
+		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
+		const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
+		for(uint z=1u; z<Nz-1u; z++) {
+			for(uint y=0u; y<1u; y++) {
+				for(uint x=1u; x<Nx-1u; x++) {
+					const uint n = x+(y+z*Ny)*Nx;
+					lbm.u.y[n] = uy;
+					lbm.u.z[n] = uz;
+				}
+			}
+		}
+		lbm.u.write_to_device();
+		lbm.run(100u);
 	}
 }
 
