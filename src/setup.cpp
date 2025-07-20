@@ -1039,10 +1039,42 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	// The domain size will be automatically set based on the STL bounding box
 	// Use --autostart command line argument or uncomment the line below to start simulation automatically
 	key_P = true; // autostart simulation in interactive graphics mode
+	
+	/* WAVE GENERATION IMPLEMENTATION:
+	 * 
+	 * This simulation uses velocity forcing on TYPE_F cells for wave generation,
+	 * which is compatible with free surface flows (SURFACE extension).
+	 * 
+	 * APPROACH:
+	 * - No TYPE_E (equilibrium) boundaries are used, avoiding conflicts with free surface
+	 * - Wave velocity is applied directly to TYPE_F (fluid) cells near y=0 boundary
+	 * - Velocity decays with distance from boundary (sponge layer approach)
+	 * - Only fluid cells are updated, respecting bathymetry (TYPE_S cells)
+	 * 
+	 * PARAMETERS:
+	 * - Wave height and period are specified in SI units
+	 * - Converted to LBM units using the units system
+	 * - Sinusoidal velocity profile: uy = A*sin(2π*f*t), uz = 0.5*A*cos(2π*f*t)
+	 * - Applied to first 5 cells in y-direction with linear decay
+	 * 
+	 * ADVANTAGES:
+	 * - Compatible with free surface tracking
+	 * - Respects solid boundaries from bathymetry
+	 * - More physically realistic than equilibrium boundaries
+	 * - Allows waves to reflect and interact naturally
+	 */
 	// ################################################################## define simulation box size, viscosity and volume force ###################################################################
-	const float f = 0.001f; // make smaller
-	const float u = 0.12f; // peak velocity of speaker membrane
-	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
+	// Physical parameters (SI units)
+	const float si_g = 9.81f; // gravitational acceleration [m/s^2]
+	const float si_nu = 1.0E-6f; // kinematic viscosity of water at 20°C [m^2/s]
+	const float si_rho = 1000.0f; // density of water [kg/m^3]
+	const float si_wave_height = 0.2f; // wave height [m]
+	const float si_wave_period = 4.0f; // wave period [s]
+	const float si_cell_size = 0.01f; // physical size of one lattice cell [m]
+	
+	// LBM parameters (dimensionless)
+	const float lbm_u = 0.15f; // moderate peak velocity for stable waves
+	const float lbm_rho = 1.0f; // reference density in LBM units
 
 	// Check for --load-bathymetry command line argument
 	string bathymetry_file = "";
@@ -1071,18 +1103,18 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		println("  Size: " + to_string(mesh_size.x) + " x " + to_string(mesh_size.y) + " x " + to_string(mesh_size.z));
 
 		// Use reasonable domain sizing based on bathymetry scale
-		const float padding = 1.5f; // Add 1.5x the mesh size as padding for waves
+		const float padding = 0.5f; // Add 50% padding around the mesh
 		const float3 domain_size = mesh_size * (1.0f + padding);
-		
-		// Set resolution based on a target of ~10 cells per unit in the largest dimension
+
+		// Set resolution based on a target of ~5 cells per unit in the largest dimension
 		const float max_dim = fmax(fmax(mesh_size.x, mesh_size.y), mesh_size.z);
-		const float cells_per_unit = fmin(10.0f, fmax(4.0f, 128.0f / max_dim)); // Between 4-10 cells per unit
-		
+		const float cells_per_unit = 5.0f; // Fixed 5 cells per unit for consistent resolution
+
 		// Calculate resolution maintaining aspect ratio
-		Nx = max(64u, (uint)(domain_size.x * cells_per_unit));
-		Ny = max(64u, (uint)(domain_size.y * cells_per_unit));
-		Nz = max(32u, (uint)(domain_size.z * cells_per_unit * 2.0f)); // Extra resolution in Z for waves
-		
+		Nx = max(32u, (uint)(domain_size.x * cells_per_unit));
+		Ny = max(32u, (uint)(domain_size.y * cells_per_unit));
+		Nz = max(32u, (uint)(domain_size.z * cells_per_unit * 1.5f)); // Extra resolution in Z for waves
+
 		// Cap maximum resolution to avoid excessive memory usage
 		const uint max_total = 10000000u; // ~10M cells max
 		const uint total_cells = Nx * Ny * Nz;
@@ -1098,8 +1130,24 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		delete bathymetry_mesh; // Clean up temporary mesh
 	}
 
-	// Create LBM with determined size
-	LBM lbm(Nx, Ny, Nz, 0.01f, 0.0f, 0.0f, -f);
+	// Set up unit conversion based on physical cell size
+	units.set_m_kg_s(1.0f, lbm_u, lbm_rho, si_cell_size, si_wave_height/si_wave_period, si_rho);
+	
+	// Convert physical parameters to LBM units
+	const float lbm_nu = units.nu(si_nu); // kinematic viscosity in LBM units
+	const float lbm_g = units.g(si_g); // gravitational acceleration in LBM units
+	const float lbm_f = units.f(si_rho, si_g); // force per volume in LBM units
+	const float lbm_frequency = units.frequency(1.0f/si_wave_period); // wave frequency in LBM units
+	
+	// DEBUG: Print wave generation parameters
+	println("Wave generation parameters:");
+	println("  lbm_u (peak velocity): " + to_string(lbm_u));
+	println("  lbm_frequency: " + to_string(lbm_frequency));
+	println("  si_wave_period: " + to_string(si_wave_period) + " s");
+	println("  si_wave_height: " + to_string(si_wave_height) + " m");
+	
+	// Create LBM with determined size and converted parameters
+	LBM lbm(Nx, Ny, Nz, lbm_nu, 0.0f, 0.0f, -lbm_f);
 
 	// If bathymetry file was provided, load and voxelize it
 	if(!bathymetry_file.empty()) {
@@ -1109,13 +1157,13 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		// Center the bathymetry in the domain
 		const float3 mesh_center = bathymetry_mesh->get_bounding_box_center();
 		const float3 domain_center = lbm.center();
-		
+
 		// Translate bathymetry so its center aligns with domain center
 		// But offset it down so it sits on the bottom part of the domain for waves
 		const float3 target_center = float3(domain_center.x, domain_center.y, domain_center.z - 0.2f * lbm.size().z);
 		const float3 mesh_offset = target_center - mesh_center;
 		bathymetry_mesh->translate(mesh_offset);
-		
+
 		println("Translated bathymetry by: " + to_string(mesh_offset.x) + ", " + to_string(mesh_offset.y) + ", " + to_string(mesh_offset.z));
 
 		// Voxelize the bathymetry as solid geometry
@@ -1126,36 +1174,40 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 	// ###################################################################################### define geometry ######################################################################################
 	const uint lbm_Nx=lbm.get_Nx(), lbm_Ny=lbm.get_Ny(), lbm_Nz=lbm.get_Nz(); parallel_for(lbm.get_N(), [&](ulong n) { uint x=0u, y=0u, z=0u; lbm.coordinates(n, x, y, z);
 		const uint H = lbm_Nz/2u;
+		// CRITICAL ISSUE: This sets cells below H as TYPE_F, but later code tries to set
+		// some of these same cells (at y=0) as TYPE_E for wave generation.
+		// This creates a conflict where TYPE_F cells are overwritten as TYPE_E.
 		if(lbm.flags[n]!=TYPE_S && z<H) { // Only set fluid if not already solid from bathymetry
 			lbm.flags[n] = TYPE_F;
-			lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)H);
+			lbm.rho[n] = units.rho_hydrostatic(lbm_f, (float)z, (float)H);
 		}
 		if(!bathymetry_file.empty()) {
 			// When using bathymetry, only set boundaries on domain edges
-			if(x==0u||x==lbm_Nx-1u||y==0u||y==lbm_Ny-1u||z==0u||z==lbm_Nz-1u) {
-				if(lbm.flags[n]!=TYPE_S) lbm.flags[n] = TYPE_S; // all non periodic
+			if(x==0u||x==lbm_Nx-1u||y==lbm_Ny-1u||z==0u||z==lbm_Nz-1u) {
+				if(lbm.flags[n]!=TYPE_S) lbm.flags[n] = TYPE_S; // all non periodic except y=0
 			}
-			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u && lbm.flags[n]!=TYPE_S) {
-				lbm.flags[n] = TYPE_E; // equilibrium boundary for wave generation
-			}
+			// SOLUTION #2: Don't use TYPE_E for wave generation with free surface
+			// Instead, we'll apply velocity forcing to TYPE_F cells in the main loop
+			// This is more compatible with the SURFACE extension
+			// No boundary condition changes needed here - keep cells as TYPE_F or TYPE_S
 		} else {
 			// Default beach slope when no bathymetry is loaded
 			if(plane(x, y, z, float3(lbm.center().x, 128.0f, 0.0f), float3(0.0f, -1.0f, 8.0f))) lbm.flags[n] = TYPE_S;
 			if(x==0u||x==lbm_Nx-1u||y==0u||y==lbm_Ny-1u||z==0u||z==lbm_Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
-			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u) lbm.flags[n] = TYPE_E;
+			// SOLUTION #2: No TYPE_E cells - keep boundary as TYPE_S, apply velocity to nearby TYPE_F cells
 		}
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
-	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE; // Only wireframe mode for better visibility
+	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE|VIS_PHI_RAYTRACE; // Show both surface mesh and raytracing
 
 #ifdef SURFACE_EXPORT
 	// Configure surface export settings
 	surface_export_config.enabled = true;
 	surface_export_config.directory = get_exe_path()+"export/surface/";
-	surface_export_config.export_interval = 1000u; // export every 1000 timesteps
+	surface_export_config.export_interval = 100u; // export every 1000 timesteps
 	surface_export_config.ascii_format = false; // use binary STL format
 #endif // SURFACE_EXPORT
 
-	const ulong max_timesteps = 5000u; // run for 5000 timesteps (shorter for frame export)
+	const ulong max_timesteps = 2000u; // run for 2000 timesteps to avoid crashes
 	lbm.run(0u, max_timesteps); // initialize simulation
 
 #ifdef SURFACE_EXPORT
@@ -1169,23 +1221,53 @@ void main_setup() { // breaking waves on beach; required extensions in defines.h
 		if(lbm.graphics.next_frame(max_timesteps, 10.0f)) { // render frames for 10 seconds at 60fps
 			// Set camera to show the bathymetry and waves
 			const float Nx_f = (float)lbm_Nx, Ny_f = (float)lbm_Ny, Nz_f = (float)lbm_Nz;
-			lbm.graphics.set_camera_free(float3(1.5f*Nx_f, -0.5f*Ny_f, 0.8f*Nz_f), -20.0f, 45.0f, 60.0f);
+			// lbm.graphics.set_camera_free(float3(0.7f*Nx_f, -0.7f*Ny_f, 0.5f*Nz_f), -45.0f, 30.0f, 100.0f);
 			lbm.graphics.write_frame("tmp/bathymetry_frames/");
 		}
 #endif // GRAPHICS
 
+		// WAVE GENERATION CODE - Solution #2: Apply velocity forcing to TYPE_F cells
+		// This applies sinusoidal wave velocity to fluid cells near y=0 boundary
+		// This approach is compatible with free surface (SURFACE extension)
 		lbm.u.read_from_device();
-		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
-		const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
+		lbm.flags.read_from_device(); // Need to check cell types
+		
+		const float uy = lbm_u*sinf(2.0f*pif*lbm_frequency*(float)lbm.get_t());
+		const float uz = 0.5f*lbm_u*cosf(2.0f*pif*lbm_frequency*(float)lbm.get_t());
+		
+		// Apply velocity forcing to TYPE_F cells in a layer near y=0
+		// This creates wave motion without using incompatible TYPE_E boundaries
+		const uint wave_layer_thickness = 5u; // Apply forcing to first 5 cells in y direction
+		
+		// Debug output every 100 timesteps
+		if(lbm.get_t() % 100u == 0u) {
+			println("Wave generation at timestep " + to_string(lbm.get_t()) + ":");
+			println("  uy = " + to_string(uy) + ", uz = " + to_string(uz));
+		}
+		
+		uint fluid_cells_updated = 0u;
 		for(uint z=1u; z<lbm_Nz-1u; z++) {
-			for(uint y=0u; y<1u; y++) {
+			for(uint y=0u; y<wave_layer_thickness; y++) {
 				for(uint x=1u; x<lbm_Nx-1u; x++) {
 					const uint n = x+(y+z*lbm_Ny)*lbm_Nx;
-					lbm.u.y[n] = uy;
-					lbm.u.z[n] = uz;
+					
+					// Only apply velocity to TYPE_F (fluid) cells
+					if(lbm.flags[n] == TYPE_F) {
+						// Apply forcing with decay based on distance from boundary
+						const float decay = 1.0f - (float)y / (float)wave_layer_thickness;
+						lbm.u.y[n] = decay * uy;
+						lbm.u.z[n] = decay * uz;
+						fluid_cells_updated++;
+					}
 				}
 			}
 		}
+		
+		// Debug output
+		if(lbm.get_t() % 100u == 0u) {
+			println("  Updated " + to_string(fluid_cells_updated) + " fluid cells with wave velocity");
+		}
+		lbm.flags.write_to_device(); // Write flags back after reading them
 		lbm.u.write_to_device();
 		lbm.run(50u, max_timesteps); // run fewer steps per frame for more frequent frame export
 
