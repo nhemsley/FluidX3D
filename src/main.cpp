@@ -158,13 +158,13 @@ void main_graphics() {
 
 #ifdef SURFACE_EXPORT
 	SurfaceExportConfig surface_export_config; // global surface export configuration
-	
+
 	// Export a single surface frame to STL file
 	// This function is called internally by run_with_surface_export()
 	void export_surface_frame(LBM* lbm, ulong timestep) {
 		if(!surface_export_config.enabled || !lbm) return;
 		if(!surface_export_config.should_export(timestep)) return;
-		
+
 		// Check if SURFACE and EXPORT_SURFACE are enabled
 #if !defined(SURFACE) || !defined(EXPORT_SURFACE)
 		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
@@ -175,16 +175,16 @@ void main_graphics() {
 		lbm->enqueue_export_surface();
 		float* vertices = lbm->get_surface_vertices();
 		ulong triangle_count = lbm->get_triangle_count();
-		
+
 		if(triangle_count > 0u && vertices != nullptr) {
 			string filename = surface_export_config.get_filename(timestep);
-			write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
+			write_stl(filename, vertices, triangle_count, true);
 		}
-		
+
 		// No need to delete vertices - it's an internal pointer from Memory class
 #endif // SURFACE && EXPORT_SURFACE
 	}
-	
+
 	// Convenience function to run simulation with periodic surface export
 	// Usage: run_with_surface_export(&lbm) or run_with_surface_export(&lbm, 1000u)
 	// Command line arguments:
@@ -199,7 +199,7 @@ void main_graphics() {
 			lbm->run(steps);
 			return;
 		}
-		
+
 #if !defined(SURFACE) || !defined(EXPORT_SURFACE)
 		print_error("Surface export requires SURFACE and EXPORT_SURFACE extensions to be enabled.");
 		surface_export_config.enabled = false;
@@ -208,32 +208,32 @@ void main_graphics() {
 #else
 		// Initialize simulation
 		lbm->run(0u);
-		
+
 		// Export initial state if needed
 		if(surface_export_config.should_export(0u)) {
 			export_surface_frame(lbm, 0u);
 		}
-		
+
 		// Run simulation with periodic exports
 		const ulong start_t = lbm->get_t();
 		const ulong end_t = (steps == max_ulong) ? max_ulong : start_t + steps;
-		
+
 		while(lbm->get_t() < end_t) {
 			// Calculate steps until next export or end
 			const ulong current_t = lbm->get_t();
 			const ulong next_export = ((current_t / surface_export_config.export_interval) + 1u) * surface_export_config.export_interval;
 			const ulong steps_to_run = min(next_export - current_t, end_t - current_t);
-			
+
 			if(steps_to_run == 0u) break;
-			
+
 			// Run simulation steps
 			lbm->run(steps_to_run);
-			
+
 			// Export if we're at an export interval
 			if(surface_export_config.should_export(lbm->get_t())) {
 				export_surface_frame(lbm, lbm->get_t());
 			}
-			
+
 			// Check if we should continue (for infinite runs)
 			if(steps == max_ulong && !running) break;
 		}
@@ -247,7 +247,7 @@ void main_graphics() {
 		running = false;
 		exit(0); // make sure that the program stops
 	}
-	
+
 	#ifndef GRAPHICS
 	int main(int argc, char* argv[]) {
 		info.allow_printing.lock();
