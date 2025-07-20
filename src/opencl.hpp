@@ -186,7 +186,9 @@ struct Device_Info {
 	inline Device_Info() {}; // default constructor
 };
 
-string get_opencl_c_code(); // implemented in kernel.hpp
+inline string get_opencl_c_code() { // read OpenCL C code from kernel.cl file
+	return read_file("src/kernel.cl");
+}
 inline void print_device_info(const Device_Info& d) { // print OpenCL device info
 #if defined(_WIN32)
 	const string os = "Windows";

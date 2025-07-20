@@ -60,7 +60,6 @@
   <ItemGroup>
     <ClCompile Include="src\graphics.cpp" />
     <ClCompile Include="src\info.cpp" />
-    <ClCompile Include="src\kernel.cpp" />
     <ClCompile Include="src\lbm.cpp" />
     <ClCompile Include="src\lodepng.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -71,7 +70,6 @@
     <ClInclude Include="src\defines.hpp" />
     <ClInclude Include="src\graphics.hpp" />
     <ClInclude Include="src\info.hpp" />
-    <ClInclude Include="src\kernel.hpp" />
     <ClInclude Include="src\lbm.hpp" />
     <ClInclude Include="src\lodepng.hpp" />
     <ClInclude Include="src\opencl.hpp" />

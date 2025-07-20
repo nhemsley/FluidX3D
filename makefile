@@ -20,7 +20,7 @@ Linux macOS Android: LDLIBS_X11 =
 
 Linux-X11 Linux macOS Android: bin/FluidX3D
 
-bin/FluidX3D: temp/graphics.o temp/info.o temp/kernel.o temp/lbm.o temp/lodepng.o temp/main.o temp/setup.o temp/shapes.o make.sh
+bin/FluidX3D: temp/graphics.o temp/info.o temp/lbm.o temp/lodepng.o temp/main.o temp/setup.o temp/shapes.o make.sh
 	@mkdir -p bin
 	$(CC) temp/*.o -o bin/FluidX3D $(CFLAGS) $(LDFLAGS_OPENCL) $(LDLIBS_OPENCL) $(LDFLAGS_X11) $(LDLIBS_X11)
 
@@ -32,9 +32,7 @@ temp/info.o: src/info.cpp src/defines.hpp src/graphics.hpp src/info.hpp src/lbm.
 	@mkdir -p temp
 	$(CC) -c src/info.cpp -o temp/info.o $(CFLAGS) $(LDFLAGS_OPENCL)
 
-temp/kernel.o: src/kernel.cpp src/kernel.hpp src/lodepng.hpp src/utilities.hpp
-	@mkdir -p temp
-	$(CC) -c src/kernel.cpp -o temp/kernel.o $(CFLAGS)
+
 
 temp/lbm.o: src/lbm.cpp src/defines.hpp src/graphics.hpp src/info.hpp src/lbm.hpp src/lodepng.hpp src/opencl.hpp src/units.hpp src/utilities.hpp make.sh
 	@mkdir -p temp

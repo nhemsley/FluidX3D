@@ -411,12 +411,24 @@ string opencl_c_container() { return R( // ########################## begin of O
 	return (triangle_table_data[i/2u]>>(4u*(i%2u)))&0xF;
 }
 )+R(float interpolate(const float v1, const float v2, const float iso) { // linearly interpolate position where isosurface cuts an edge between 2 vertices at 0 and 1
-	return (iso-v1)/(v2-v1);
+	const float diff = v2-v1;
+	// Prevent division by zero or near-zero for degenerate cases
+	if(fabs(diff) < 1e-6f) {
+		return 0.5f; // Return midpoint if values are too close
+	}
+	return (iso-v1)/diff;
 }
 )+R(uint marching_cubes(const float* v, const float iso, float3* triangles) { // input: 8 values v, isovalue; output: returns number of triangles, 15 triangle vertices t
 	uint cube = 0u; // determine index of which vertices are inside of the isosurface
 	for(uint i=0u; i<8u; i++) cube |= (v[i]<iso)<<i;
 	if(cube==0u||cube==255u) return 0u; // cube is entirely inside/outside of the isosurface
+	// Additional check for degenerate cases where all values are very close to iso
+	float min_v = v[0], max_v = v[0];
+	for(uint i=1u; i<8u; i++) {
+		min_v = fmin(min_v, v[i]);
+		max_v = fmax(max_v, v[i]);
+	}
+	if(max_v - min_v < 1e-5f) return 0u; // Skip nearly flat regions that produce degenerate triangles
 	float3 vertex[12]; // find the vertices where the surface intersects the cube
 	vertex[ 0] = (float3)(interpolate(v[0], v[1], iso), 0.0f, 0.0f); // interpolate vertices on all 12 edges
 	vertex[ 1] = (float3)(1.0f, 0.0f, interpolate(v[1], v[2], iso)); // do interpolation only in 1D to reduce operations
