@@ -178,7 +178,7 @@ void main_graphics() {
 
 		if(triangle_count > 0u && vertices != nullptr) {
 			string filename = surface_export_config.get_filename(timestep);
-			write_stl(filename, vertices, triangle_count, true);
+			write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
 		}
 
 		// No need to delete vertices - it's an internal pointer from Memory class
