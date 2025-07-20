@@ -688,7 +688,12 @@ uchar triangle_table(const uint i) {
 }
 
 float interpolate(const float v1, const float v2, const float iso) {
-  return (iso - v1) / (v2 - v1);
+  const float diff = v2 - v1;
+  // Prevent division by zero or near-zero for degenerate cases
+  if(fabs(diff) < 1e-6f) {
+    return 0.5f; // Return midpoint if values are too close
+  }
+  return (iso - v1) / diff;
 }
 
 uint marching_cubes(const float *v, const float iso, float3 *triangles) {
@@ -697,6 +702,13 @@ uint marching_cubes(const float *v, const float iso, float3 *triangles) {
     cube |= (v[i] < iso) << i;
   if (cube == 0u || cube == 255u)
     return 0u;
+  // Additional check for degenerate cases where all values are very close to iso
+  float min_v = v[0], max_v = v[0];
+  for(uint i=1u; i<8u; i++) {
+    min_v = fmin(min_v, v[i]);
+    max_v = fmax(max_v, v[i]);
+  }
+  if(max_v - min_v < 1e-5f) return 0u; // Skip nearly flat regions that produce degenerate triangles
   float3 vertex[12];
   vertex[0] = (float3)(interpolate(v[0], v[1], iso), 0.0f, 0.0f);
   vertex[1] = (float3)(1.0f, 0.0f, interpolate(v[1], v[2], iso));

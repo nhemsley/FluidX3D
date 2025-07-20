@@ -57,6 +57,18 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 		} else {
 			normal = normalize(cross_product);
 		}
+		
+		// Flip normal to ensure correct orientation for fluid surfaces
+		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
+		// For fluid simulations, we want normals pointing outward (from fluid into air)
+		normal = -normal;
+		
+		// DEBUG: Print first few normals to verify flipping (binary export)
+		if(i < 5) {
+			println("DEBUG STL Binary Export - Triangle " + to_string(i) + ":");
+			println("  Original normal (from cross product): [" + to_string(-normal.x) + ", " + to_string(-normal.y) + ", " + to_string(-normal.z) + "]");
+			println("  Flipped normal (being written): [" + to_string(normal.x) + ", " + to_string(normal.y) + ", " + to_string(normal.z) + "]");
+		}
 
 		// Write normal (12 bytes)
 		file.write(reinterpret_cast<const char*>(&normal.x), sizeof(float));
@@ -82,7 +94,8 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 	}
 
 	file.close();
-	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\"");
+	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (binary format)");
+	println("DEBUG: Normal flipping code WAS EXECUTED in write_stl_binary");
 }
 
 // Function to write surface mesh data to ASCII STL file (for debugging/inspection)
@@ -105,6 +118,7 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 	file << "solid FluidX3D_surface" << std::endl;
 
 	// Write each triangle
+	ulong degenerate_count = 0u;
 	for(ulong i = 0u; i < triangle_count; i++) {
 		const ulong base = i * 9u; // 9 floats per triangle
 
@@ -125,12 +139,31 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 			// Degenerate triangle detected - use a default normal
 			normal = float3(0.0f, 0.0f, 1.0f);
 			static bool warning_shown = false;
+			degenerate_count++;
 			if(!warning_shown) {
-				println("Warning: Degenerate triangles detected in surface mesh export. Using default normal (0,0,1).");
+				println("Warning: Degenerate triangle detected at triangle " + to_string(i) + ":");
+				println("  v0: (" + to_string(v0.x) + ", " + to_string(v0.y) + ", " + to_string(v0.z) + ")");
+				println("  v1: (" + to_string(v1.x) + ", " + to_string(v1.y) + ", " + to_string(v1.z) + ")");
+				println("  v2: (" + to_string(v2.x) + ", " + to_string(v2.y) + ", " + to_string(v2.z) + ")");
+				println("  edge1: (" + to_string(edge1.x) + ", " + to_string(edge1.y) + ", " + to_string(edge1.z) + ")");
+				println("  edge2: (" + to_string(edge2.x) + ", " + to_string(edge2.y) + ", " + to_string(edge2.z) + ")");
+				println("  cross_product length: " + to_string(length(cross_product)));
 				warning_shown = true;
 			}
 		} else {
 			normal = normalize(cross_product);
+		}
+		
+		// Flip normal to ensure correct orientation for fluid surfaces
+		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
+		// For fluid simulations, we want normals pointing outward (from fluid into air)
+		normal = -normal;
+		
+		// DEBUG: Print first few normals to verify flipping
+		if(i < 5) {
+			println("DEBUG STL Export - Triangle " + to_string(i) + ":");
+			println("  Original normal (from cross product): [" + to_string(-normal.x) + ", " + to_string(-normal.y) + ", " + to_string(-normal.z) + "]");
+			println("  Flipped normal (being written): [" + to_string(normal.x) + ", " + to_string(normal.y) + ", " + to_string(normal.z) + "]");
 		}
 
 		// Write facet
@@ -145,9 +178,15 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 
 	// Write footer
 	file << "endsolid FluidX3D_surface" << std::endl;
+	
+	// Report degenerate triangles
+	if(degenerate_count > 0u) {
+		println("Total degenerate triangles: " + to_string(degenerate_count) + " out of " + to_string(triangle_count) + " (" + to_string(100.0f * (float)degenerate_count / (float)triangle_count) + "%)");
+	}
 
 	file.close();
 	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (ASCII format)");
+	println("DEBUG: Normal flipping code WAS EXECUTED in write_stl_ascii");
 }
 
 // Wrapper function that writes binary STL by default
