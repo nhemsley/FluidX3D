@@ -1,4 +1,5 @@
 #include "setup.hpp"
+#include "surface_export.hpp"
 
 void main_setup_loading_stl_broken() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS, SURFACE_EXPORT
 	// Usage: ./FluidX3D --load-bathymetry path/to/bathymetry.stl
@@ -194,21 +195,18 @@ void main_setup_loading_stl_broken() { // breaking waves on beach; required exte
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE|VIS_PHI_RAYTRACE; // Show both surface mesh and raytracing
 
-#ifdef SURFACE_EXPORT
-	// Configure surface export settings
-	surface_export_config.enabled = true;
-	surface_export_config.directory = get_exe_path()+"export/surface/";
-	surface_export_config.export_interval = 100u; // export every 1000 timesteps
-	surface_export_config.ascii_format = false; // use binary STL format
+	#ifdef SURFACE_EXPORT
+		// Parse surface export configuration from command line arguments
+		SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
+		// if(surface_export_config.should_export(0u)) {
+		// 	export_surface_frame(&lbm, 0u, surface_export_config);
+		// }
 #endif // SURFACE_EXPORT
 
 	const ulong max_timesteps = 2000u; // run for 2000 timesteps to avoid crashes
 	lbm.run(0u, max_timesteps); // initialize simulation
 
-#ifdef SURFACE_EXPORT
-	// Export initial surface state
-	export_surface_frame(&lbm, 0u);
-#endif // SURFACE_EXPORT
+
 
 	while(true) { // main simulation loop (like beach example)
 		// Export frames for visualization
@@ -336,7 +334,7 @@ void main_setup_loading_stl_broken() { // breaking waves on beach; required exte
 #ifdef SURFACE_EXPORT
 		// Export surface at configured intervals
 		if(surface_export_config.should_export(lbm.get_t())) {
-			export_surface_frame(&lbm, lbm.get_t());
+			export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 			println("Exported surface at timestep "+to_string(lbm.get_t()));
 		}
 #endif // SURFACE_EXPORT
@@ -361,21 +359,34 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 		if(y==0u && x>0u&&x<Nx-1u&&z>0u&&z<Nz-1u) lbm.flags[n] = TYPE_E;
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
-
-#ifdef SURFACE_EXPORT
-	// Configure surface export settings
-	surface_export_config.enabled = true;
-	surface_export_config.directory = get_exe_path()+"export/surface/";
-	surface_export_config.export_interval = 100u; // export every 100 timesteps
-	surface_export_config.ascii_format = false; // use binary STL format
-#endif // SURFACE_EXPORT
-
 	lbm.run(0u); // initialize simulation
 
-// #ifdef SURFACE_EXPORT
-// 	// Export initial surface state
-// 	export_surface_frame(&lbm, 0u);
-// #endif // SURFACE_EXPORT
+#ifdef SURFACE_EXPORT
+	// Parse surface export configuration from command line arguments
+	SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
+	
+	// Force enable surface export for testing (comment out for production)
+	if(!surface_export_config.enabled) {
+		surface_export_config.enabled = true;
+		surface_export_config.directory = get_exe_path() + "export/";
+		surface_export_config.export_interval = 100u;
+		surface_export_config.ascii_format = false;
+		println("DEBUG: Force-enabling surface export for testing");
+		// Create directory if needed
+		create_directory_if_not_exists(surface_export_config.directory);
+	}
+	
+	println("DEBUG: Beach setup - Surface export config after parsing:");
+	println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
+	println("  Directory: " + surface_export_config.directory);
+	println("  Interval: " + to_string(surface_export_config.export_interval));
+	println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
+	if(surface_export_config.enabled && surface_export_config.should_export(0u)) {
+		println("DEBUG: Exporting initial surface frame");
+		export_surface_frame(&lbm, 0u, surface_export_config);
+	}
+#endif // SURFACE_EXPORT
+
 	while(true) { // main simulation loop
 		lbm.u.read_from_device();
 		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
@@ -390,12 +401,16 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 			}
 		}
 		lbm.u.write_to_device();
-		lbm.run(100u);
+		lbm.run(10u);
+  println("HERE");
 
 #ifdef SURFACE_EXPORT
+println("SURFACE_EXPORT");
+
 		// Export surface at regular intervals
-		if(lbm.get_t() % surface_export_config.export_interval == 0u) {
-			export_surface_frame(&lbm, lbm.get_t());
+		if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
+		    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+			export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 		}
 #endif // SURFACE_EXPORT
 	}

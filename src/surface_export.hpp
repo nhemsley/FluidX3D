@@ -1,5 +1,6 @@
 #pragma once
 #include "utilities.hpp"
+#include "lbm.hpp"
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -47,7 +48,7 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 		float3 edge1 = v1 - v0;
 		float3 edge2 = v2 - v0;
 		float3 cross_product = cross(edge1, edge2);
-		
+
 		// Check for degenerate triangles
 		const float epsilon = 1e-6f;
 		float3 normal;
@@ -57,12 +58,12 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 		} else {
 			normal = normalize(cross_product);
 		}
-		
+
 		// Flip normal to ensure correct orientation for fluid surfaces
 		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
 		// For fluid simulations, we want normals pointing outward (from fluid into air)
 		normal = -normal;
-		
+
 		// DEBUG: Print first few normals to verify flipping (binary export)
 		if(i < 5) {
 			println("DEBUG STL Binary Export - Triangle " + to_string(i) + ":");
@@ -131,7 +132,7 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 		float3 edge1 = v1 - v0;
 		float3 edge2 = v2 - v0;
 		float3 cross_product = cross(edge1, edge2);
-		
+
 		// Check if cross product is near zero (degenerate triangle)
 		const float epsilon = 1e-6f;
 		float3 normal;
@@ -153,12 +154,12 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 		} else {
 			normal = normalize(cross_product);
 		}
-		
+
 		// Flip normal to ensure correct orientation for fluid surfaces
 		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
 		// For fluid simulations, we want normals pointing outward (from fluid into air)
 		normal = -normal;
-		
+
 		// DEBUG: Print first few normals to verify flipping
 		if(i < 5) {
 			println("DEBUG STL Export - Triangle " + to_string(i) + ":");
@@ -178,7 +179,7 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 
 	// Write footer
 	file << "endsolid FluidX3D_surface" << std::endl;
-	
+
 	// Report degenerate triangles
 	if(degenerate_count > 0u) {
 		println("Total degenerate triangles: " + to_string(degenerate_count) + " out of " + to_string(triangle_count) + " (" + to_string(100.0f * (float)degenerate_count / (float)triangle_count) + "%)");
@@ -230,18 +231,29 @@ inline bool create_directory_if_not_exists(const string& path) {
 }
 
 // Structure to hold surface export configuration
+// Configuration structure for surface export
 struct SurfaceExportConfig {
 	string directory = "";
 	bool enabled = false;
 	uint export_interval = 100u; // Export every N timesteps
 	bool ascii_format = true; // Use ASCII STL format (larger files, but human-readable)
 
+	// Static method to parse configuration from command line arguments
+	static SurfaceExportConfig parse_from_arguments(const vector<string>& args) {
+		SurfaceExportConfig config;
+		config.parse_arguments(args);
+		return config;
+	}
+
 	// Parse command line arguments for surface export
 	void parse_arguments(const vector<string>& args) {
+		println("DEBUG: Parsing surface export arguments. Total args: " + to_string(args.size()));
 		for(size_t i = 0; i < args.size(); i++) {
+			println("DEBUG: Arg[" + to_string(i) + "] = " + args[i]);
 			if(args[i] == "--export-surface-to" && i + 1 < args.size()) {
 				directory = args[i + 1];
 				enabled = true;
+				println("DEBUG: Surface export enabled. Directory: " + directory);
 
 				// Ensure directory ends with separator
 				if(!directory.empty() && directory.back() != '/' && directory.back() != '\\') {
@@ -256,16 +268,23 @@ struct SurfaceExportConfig {
 			}
 			else if(args[i] == "--export-surface-interval" && i + 1 < args.size()) {
 				export_interval = to_uint(args[i + 1]);
+				println("DEBUG: Export interval set to: " + to_string(export_interval));
 			}
 			else if(args[i] == "--export-surface-ascii") {
 				ascii_format = true;
+				println("DEBUG: ASCII format enabled");
 			}
 		}
+		println("DEBUG: Parse complete. Enabled: " + string(enabled ? "true" : "false") + ", Interval: " + to_string(export_interval));
 	}
 
 	// Check if export should happen at this timestep
 	bool should_export(ulong timestep) const {
-		return enabled && (timestep % export_interval == 0u);
+		bool result = enabled && (timestep % export_interval == 0u);
+		println("DEBUG: should_export(" + to_string(timestep) + ") - enabled: " + string(enabled ? "true" : "false") + 
+				", interval: " + to_string(export_interval) + ", mod: " + to_string(timestep % export_interval) + 
+				", result: " + string(result ? "true" : "false"));
+		return result;
 	}
 
 	// Generate filename for a given timestep
@@ -275,3 +294,33 @@ struct SurfaceExportConfig {
 		return ss.str();
 	}
 };
+
+
+// Global surface export configuration
+extern SurfaceExportConfig surface_export_config;
+
+// Export a single surface frame to STL file
+// This function is called internally by run_with_surface_export()
+inline void export_surface_frame(LBM* lbm, ulong timestep, SurfaceExportConfig surface_export_config) {
+	if(!surface_export_config.enabled || !lbm) return;
+	if(!surface_export_config.should_export(timestep)) return;
+
+	// Check if SURFACE and SURFACE_EXPORT are enabled
+#if !defined(SURFACE) || !defined(SURFACE_EXPORT)
+	print_error("Surface export requires SURFACE and SURFACE_EXPORT extensions to be enabled.");
+	surface_export_config.enabled = false;
+	return;
+#else
+	// Export the surface
+	lbm->enqueue_export_surface();
+	float* vertices = lbm->get_surface_vertices();
+	ulong triangle_count = lbm->get_triangle_count();
+
+	if(triangle_count > 0u && vertices != nullptr) {
+		string filename = surface_export_config.get_filename(timestep);
+		write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
+	}
+
+	// No need to delete vertices - it's an internal pointer from Memory class
+#endif // SURFACE && SURFACE_EXPORT
+}
