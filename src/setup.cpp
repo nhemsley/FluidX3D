@@ -372,10 +372,10 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 
 	lbm.run(0u); // initialize simulation
 
-#ifdef SURFACE_EXPORT
-	// Export initial surface state
-	export_surface_frame(&lbm, 0u);
-#endif // SURFACE_EXPORT
+// #ifdef SURFACE_EXPORT
+// 	// Export initial surface state
+// 	export_surface_frame(&lbm, 0u);
+// #endif // SURFACE_EXPORT
 	while(true) { // main simulation loop
 		lbm.u.read_from_device();
 		const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());

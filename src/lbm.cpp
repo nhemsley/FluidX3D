@@ -214,13 +214,8 @@ void LBM_Domain::count_surface_triangles() {
 	// Reset the counter
 	surface_count.reset(0u);
 	
-	// Make sure phi is up to date (if running with SURFACE defined)
-#ifdef SURFACE
-	if(t_last_update_fields!=t) {
-		printf("DEBUG: Updating fields before counting triangles\n");
-		enqueue_update_fields();
-	}
-#endif
+	// Note: phi is already up-to-date from the last collision step
+	// Do NOT call enqueue_update_fields() here as it disrupts the simulation state
 	
 	// Run the counting kernel
 	printf("DEBUG: Running triangle counting kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
@@ -293,13 +288,8 @@ void LBM_Domain::enqueue_export_surface() {
 	// Reset triangle counter
 	surface_count.reset(0u);
 	
-	// Make sure phi is up to date (if running with SURFACE defined)
-#ifdef SURFACE
-	if(t_last_update_fields!=t) {
-		printf("DEBUG: Updating fields before exporting triangles\n");
-		enqueue_update_fields();
-	}
-#endif
+	// Note: phi is already up-to-date from the last collision step
+	// Do NOT call enqueue_update_fields() here as it disrupts the simulation state
 	
 	// Run the export surface kernel
 	printf("DEBUG: Running triangle export kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
