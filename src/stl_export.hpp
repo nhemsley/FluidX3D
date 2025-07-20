@@ -46,7 +46,17 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 		// Calculate normal (right-hand rule)
 		float3 edge1 = v1 - v0;
 		float3 edge2 = v2 - v0;
-		float3 normal = normalize(cross(edge1, edge2));
+		float3 cross_product = cross(edge1, edge2);
+		
+		// Check for degenerate triangles
+		const float epsilon = 1e-6f;
+		float3 normal;
+		if(length(cross_product) < epsilon) {
+			// Degenerate triangle - use default normal
+			normal = float3(0.0f, 0.0f, 1.0f);
+		} else {
+			normal = normalize(cross_product);
+		}
 
 		// Write normal (12 bytes)
 		file.write(reinterpret_cast<const char*>(&normal.x), sizeof(float));
@@ -106,7 +116,22 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 		// Calculate normal
 		float3 edge1 = v1 - v0;
 		float3 edge2 = v2 - v0;
-		float3 normal = normalize(cross(edge1, edge2));
+		float3 cross_product = cross(edge1, edge2);
+		
+		// Check if cross product is near zero (degenerate triangle)
+		const float epsilon = 1e-6f;
+		float3 normal;
+		if(length(cross_product) < epsilon) {
+			// Degenerate triangle detected - use a default normal
+			normal = float3(0.0f, 0.0f, 1.0f);
+			static bool warning_shown = false;
+			if(!warning_shown) {
+				println("Warning: Degenerate triangles detected in surface mesh export. Using default normal (0,0,1).");
+				warning_shown = true;
+			}
+		} else {
+			normal = normalize(cross_product);
+		}
 
 		// Write facet
 		file << "  facet normal " << normal.x << " " << normal.y << " " << normal.z << std::endl;
@@ -126,10 +151,12 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 }
 
 // Wrapper function that writes binary STL by default
-inline void write_stl(const string& filename, const float* vertices, const ulong triangle_count, bool ascii = false) {
+inline void write_stl(const string& filename, const float* vertices, const ulong triangle_count, bool ascii = true) {
 	if(ascii) {
+    	println("Writing ascii stl");
 		write_stl_ascii(filename, vertices, triangle_count);
 	} else {
+	// println("Writing binary stl");
 		write_stl_binary(filename, vertices, triangle_count);
 	}
 }
@@ -168,7 +195,7 @@ struct SurfaceExportConfig {
 	string directory = "";
 	bool enabled = false;
 	uint export_interval = 100u; // Export every N timesteps
-	bool ascii_format = false; // Use ASCII STL format (larger files, but human-readable)
+	bool ascii_format = true; // Use ASCII STL format (larger files, but human-readable)
 
 	// Parse command line arguments for surface export
 	void parse_arguments(const vector<string>& args) {
