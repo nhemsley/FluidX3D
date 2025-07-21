@@ -151,3 +151,16 @@ float plane_plic(const uint x, const uint y, const uint z, const float3& p, cons
 	else if(d0>= dl) return  1.0f;
 	else return plic_cube_inverse(d0, nn);
 }
+
+struct Torus
+{
+	float x;
+	float y;
+	float distance_from_sealevel;
+	float inner_radius;
+	float outer_radius;
+
+	// Constructor
+	Torus(float x, float y, float distance_from_sealevel, float inner_radius, float outer_radius)
+		: x(x), y(y), distance_from_sealevel(distance_from_sealevel), inner_radius(inner_radius), outer_radius(outer_radius) {}
+};

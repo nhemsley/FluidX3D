@@ -1,6 +1,8 @@
 #include "setup.hpp"
 #include "surface_export.hpp"
 
+#include "shapes.hpp"
+
 void main_setup_loading_stl_broken() { // breaking waves on beach; required extensions in defines.hpp: FP16S, VOLUME_FORCE, EQUILIBRIUM_BOUNDARIES, SURFACE, INTERACTIVE_GRAPHICS, SURFACE_EXPORT
 	// Usage: ./FluidX3D --load-bathymetry path/to/bathymetry.stl
 	// The domain size will be automatically set based on the STL bounding box
@@ -364,7 +366,7 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 #ifdef SURFACE_EXPORT
 	// Parse surface export configuration from command line arguments
 	SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
-	
+
 	// Force enable surface export for testing (comment out for production)
 	if(!surface_export_config.enabled) {
 		surface_export_config.enabled = true;
@@ -375,7 +377,7 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 		// Create directory if needed
 		create_directory_if_not_exists(surface_export_config.directory);
 	}
-	
+
 	println("DEBUG: Beach setup - Surface export config after parsing:");
 	println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
 	println("  Directory: " + surface_export_config.directory);
@@ -416,9 +418,250 @@ println("SURFACE_EXPORT");
 	}
 }
 
-void main_setup() {
+struct Torus
+{
+	float x;
+	float y;
+	float distance_from_sealevel;
+	float inner_radius;
+	float outer_radius;
 
-    main_setup_beach();
+	// Constructor
+	Torus(float x, float y, float distance_from_sealevel, float inner_radius, float outer_radius)
+		: x(x), y(y), distance_from_sealevel(distance_from_sealevel), inner_radius(inner_radius), outer_radius(outer_radius) {}
+};
+
+
+void main_setup_right_hander()
+{
+	const float f = 0.001f;			 // make smaller
+	const float u = 0.17f;			 // peak velocity of speaker membrane
+	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
+	const float width = 50.0f, depth = 50.0f, height = 10.0f;
+	const uint simulation_steps = 50u;
+	const uint mem = 4000u;
+	const uint3 dims = resolution(float3(width, depth, height), mem);
+	LBM lbm(dims, 0.01f, 0.0f, 0.0f, -f);
+
+	const uint nx = lbm.get_Nx(), ny = lbm.get_Ny(), nz = lbm.get_Nz();
+	const float outer_radius = nx / 4;
+	const float inner_radius = nx / 8;
+	const uint D = 400, R = outer_radius;
+
+
+	const uint num_torii = 4;
+
+	float leading_x = (float)nx / 3, leading_y = (float)ny / 2;
+	float z = (float)nz / 2 / 6;
+
+	// straight barrel right hander
+	// Torus torii[num_torii] = {
+	// 	// leading point
+	// 	{leading_x, leading_y, z, inner_radius, outer_radius},
+	// 	{leading_x + inner_radius, leading_y + inner_radius, z, inner_radius, outer_radius},
+	// 	{leading_x + inner_radius * 1.5, leading_y + inner_radius * 1.5, z, inner_radius, outer_radius},
+	// 	{leading_x + inner_radius * 2.0, leading_y + inner_radius * 2.0, z, inner_radius, outer_radius}};
+
+	Torus torii[num_torii] = {
+		// leading point
+		{leading_x - inner_radius, leading_y, z, inner_radius, outer_radius},
+		{leading_x + inner_radius, leading_y + inner_radius * 2, z, inner_radius, outer_radius},
+		{leading_x + inner_radius , leading_y + inner_radius * 3.0, z, inner_radius, outer_radius},
+		{leading_x + inner_radius , leading_y + inner_radius * 4.0, z, inner_radius, outer_radius}};
+
+
+	parallel_for(lbm.get_N(), [&](ulong n)
+	 {
+		 uint x = 0u, y = 0u, z = 0u;
+		 lbm.coordinates(n, x, y, z);
+		 const uint H = nz / 2u;
+		 if (z < H)
+		 {
+			 lbm.flags[n] = TYPE_F;
+			 lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)H);
+		 }
+
+		 for (int i = 0; i < num_torii; ++i)
+		 {
+			 Torus torus = torii[i];
+			 if (torus_z(x, y, z, float3(torus.x, torus.y, (nz / 2) - ((torus.outer_radius - torus.inner_radius) + torus.distance_from_sealevel)), torus.inner_radius, torus.outer_radius))
+			 {
+				 lbm.flags[n] = TYPE_S;
+			 }
+		 }
+
+		 // boundaries
+		 if (x == 0u || x == nx - 1u || y == 0u || y == ny - 1u || z == 0u || z == nz - 1u)
+			 lbm.flags[n] = TYPE_S;
+
+		 // inflow
+		 if (y == 0u && x > 0u && x < nx - 1u && z > 0u && z < nz - 1u)
+			 lbm.flags[n] = TYPE_E;
+
+		 // outflow, doesnt work
+		 //  if (y == Ny - 1u && x > 0u && x < Nx - 1u && z > 0u && z < Nz - 1u)
+		 //  {
+		 // 	 lbm.flags[n] = TYPE_E;
+		 // 	 lbm.rho[n] = 0.9;
+		 //  }
+	 });
+
+	#ifdef SURFACE_EXPORT
+		// Parse surface export configuration from command line arguments
+		SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
+
+		// Force enable surface export for testing (comment out for production)
+		if(!surface_export_config.enabled) {
+			surface_export_config.enabled = true;
+			surface_export_config.directory = get_exe_path() + "export/";
+			surface_export_config.export_interval = 100u;
+			surface_export_config.ascii_format = false;
+			println("DEBUG: Force-enabling surface export for testing");
+			// Create directory if needed
+			create_directory_if_not_exists(surface_export_config.directory);
+		}
+
+		println("DEBUG: Beach setup - Surface export config after parsing:");
+		println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
+		println("  Directory: " + surface_export_config.directory);
+		println("  Interval: " + to_string(surface_export_config.export_interval));
+		println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
+#endif // SURFACE_EXPORT
+
+		while(true) { // main simulation loop
+			lbm.u.read_from_device();
+			const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
+			const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
+			for(uint z=1u; z<nz-1u; z++) {
+				for(uint y=0u; y<1u; y++) {
+					for(uint x=1u; x<nx-1u; x++) {
+						const uint n = x+(y+z*ny)*nx;
+						lbm.u.y[n] = uy;
+						lbm.u.z[n] = uz;
+					}
+				}
+			}
+			lbm.u.write_to_device();
+			lbm.run(10u);
+  println("HERE");
+
+#ifdef SURFACE_EXPORT
+println("SURFACE_EXPORT");
+
+			// Export surface at regular intervals
+			if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
+			    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+				export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
+			}
+#endif // SURFACE_EXPORT
+		}
+
+
+}
+
+void main_setup_sphere() {
+	const float f = 0.001f;			 // make smaller
+	const float u = 0.17f;			 // peak velocity of speaker membrane
+	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
+	const float width = 50.0f, depth = 50.0f, height = 10.0f;
+	const uint simulation_steps = 50u;
+	const uint mem = 1000u;
+	const uint3 dims = resolution(float3(width, depth, height), mem);
+	LBM lbm(dims, 0.01f, 0.0f, 0.0f, -f);
+
+	const uint nx = lbm.get_Nx(), ny = lbm.get_Ny(), nz = lbm.get_Nz();
+
+	// Sphere parameters
+	const float sphere_radius = nx / 8.0f;  // Radius is 1/8 of domain width
+	const float sphere_x = nx * 0.75f;      // Position sphere to the side (3/4 along x)
+	const float sphere_y = ny / 2.0f;       // Center in y direction
+	const float sphere_z = sphere_radius;   // Center on floor (z = radius so bottom touches floor)
+
+	parallel_for(lbm.get_N(), [&](ulong n)
+	 {
+		 uint x = 0u, y = 0u, z = 0u;
+		 lbm.coordinates(n, x, y, z);
+		 const uint H = nz / 2u;
+		 if (z < H)
+		 {
+			 lbm.flags[n] = TYPE_F;
+			 lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)H);
+		 }
+
+		 // Add sphere
+		 if (sphere(x, y, z, float3(sphere_x, sphere_y, sphere_z), sphere_radius))
+		 {
+			 lbm.flags[n] = TYPE_S;
+		 }
+
+		 // boundaries
+		 if (x == 0u || x == nx - 1u || y == 0u || y == ny - 1u || z == 0u || z == nz - 1u)
+			 lbm.flags[n] = TYPE_S;
+
+		 // inflow
+		 if (y == 0u && x > 0u && x < nx - 1u && z > 0u && z < nz - 1u)
+			 lbm.flags[n] = TYPE_E;
+	 });
+
+	#ifdef SURFACE_EXPORT
+		// Parse surface export configuration from command line arguments
+		SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
+
+		// Force enable surface export for testing (comment out for production)
+		if(!surface_export_config.enabled) {
+			surface_export_config.enabled = true;
+			surface_export_config.directory = get_exe_path() + "export/";
+			surface_export_config.export_interval = 100u;
+			surface_export_config.ascii_format = false;
+			println("DEBUG: Force-enabling surface export for testing");
+			// Create directory if needed
+			create_directory_if_not_exists(surface_export_config.directory);
+		}
+
+		println("DEBUG: Sphere setup - Surface export config after parsing:");
+		println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
+		println("  Directory: " + surface_export_config.directory);
+		println("  Interval: " + to_string(surface_export_config.export_interval));
+		println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
+		// if(surface_export_config.enabled && surface_export_config.should_export(0u)) {
+		// 	println("DEBUG: Exporting initial surface frame");
+		// 	export_surface_frame(&lbm, 0u, surface_export_config);
+		// }
+#endif // SURFACE_EXPORT
+
+		while(true) { // main simulation loop
+			lbm.u.read_from_device();
+			const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
+			const float uz = 0.5f*u*cosf(2.0f*pif*frequency*(float)lbm.get_t());
+			for(uint z=1u; z<nz-1u; z++) {
+				for(uint y=0u; y<1u; y++) {
+					for(uint x=1u; x<nx-1u; x++) {
+						const uint n = x+(y+z*ny)*nx;
+						lbm.u.y[n] = uy;
+						lbm.u.z[n] = uz;
+					}
+				}
+			}
+			lbm.u.write_to_device();
+			lbm.run(10u);
+			println("HERE");
+
+#ifdef SURFACE_EXPORT
+			println("SURFACE_EXPORT");
+
+			// Export surface at regular intervals
+			if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
+			    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+				export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
+			}
+#endif // SURFACE_EXPORT
+		}
+}
+
+void main_setup() {
+    main_setup_right_hander();
+    // main_setup_sphere();
+    // main_setup_beach();
     // main_setup_loading_stl_broken();
 }
 
