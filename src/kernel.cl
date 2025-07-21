@@ -1,5 +1,10 @@
 
 
+//================================================================================================
+//                                  MATHEMATICAL UTILITY FUNCTIONS
+//================================================================================================
+// Basic mathematical operations and helper functions used throughout the simulation
+
 float sq(const float x) { return x * x; }
 
 float cb(const float x) { return x * x * x; }
@@ -60,6 +65,11 @@ float3 trilinear3(const float3 p, const float3 *v) {
          (x1 * y1 * z1) * v[6] + (x0 * y1 * z1) * v[7];
 }
 #ifdef GRAPHICS
+
+//================================================================================================
+//                                  COLOR AND GRAPHICS FUNCTIONS
+//================================================================================================
+// Functions for color manipulation and graphics rendering support
 
 int color_from_floats(const float red, const float green, const float blue) {
   return clamp((int)fma(255.0f, red, 0.5f), 0, 255) << 16 |
@@ -683,11 +693,16 @@ constant uchar triangle_table_data[1920] = {
     49,  152, 129, 255, 255, 255, 255, 15,  25,  255, 255, 255, 255, 255, 255,
     48,  248, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
 
-uchar triangle_table(const uint i) {
-  return (triangle_table_data[i / 2u] >> (4u * (i % 2u))) & 0xF;
-}
+  uchar triangle_table(const uint i) {
+    return (triangle_table_data[i / 2u] >> (4u * (i % 2u))) & 0xF;
+  }
 
-float interpolate(const float v1, const float v2, const float iso) {
+  //================================================================================================
+  //                                  MARCHING CUBES ALGORITHM
+  //================================================================================================
+  // Functions for isosurface extraction using the marching cubes algorithm
+
+  float interpolate(const float v1, const float v2, const float iso) {
   const float diff = v2 - v1;
   // Prevent division by zero or near-zero for degenerate cases
   if(fabs(diff) < 1e-6f) {
@@ -760,6 +775,11 @@ uint marching_cubes_halfway(const bool *v, float3 *triangles) {
   }
   return i / 3u;
 }
+
+//================================================================================================
+//                                  RAY TRACING AND INTERSECTION
+//================================================================================================
+// Ray casting and geometric intersection functions for rendering and collision detection
 
 typedef struct __attribute__((packed)) struct_ray {
   float3 origin;
@@ -1298,6 +1318,11 @@ bool is_in_camera_frustrum(const float3 p, const float *camera_cache) {
 }
 #endif
 
+//================================================================================================
+//                                  COORDINATE SYSTEMS AND INDEXING
+//================================================================================================
+// Functions for converting between different coordinate representations and indexing schemes
+
 uint3 coordinates(const uxx n) {
   const uint t = (uint)(n % (uxx)(def_Nx * def_Ny));
   return (uint3)(t % def_Nx, t / def_Nx, (uint)(n / (uxx)(def_Nx * def_Ny)));
@@ -1362,6 +1387,11 @@ ushort float_to_half_custom(const float x) {
          (e > 112) * ((((e - 112) << 11) & 0x7800) | m >> 12) |
          ((e < 113) & (e > 100)) * ((((0x007FF800 + m) >> (124 - e)) + 1) >> 1);
 }
+
+//================================================================================================
+//                                  LATTICE BOLTZMANN METHOD (LBM) VELOCITY SETS
+//================================================================================================
+// Velocity set definitions and related functions for LBM simulation
 
 ulong index_f(const uxx n, const uint i) { return (ulong)i * def_N + (ulong)n; }
 
@@ -1560,6 +1590,11 @@ float calculate_Q(const uxx n, const global float *u) {
                             load3(j[3], u), load3(j[4], u), load3(j[5], u));
 }
 
+//================================================================================================
+//                                  LBM COLLISION OPERATORS
+//================================================================================================
+// Equilibrium distribution functions and collision operations for the LBM solver
+
 void calculate_f_eq(const float rho, float ux, float uy, float uz, float *feq) {
   const float rhom1 = rho - 1.0f;
 #ifndef D2Q9
@@ -1717,6 +1752,10 @@ void calculate_forcing_terms(const float ux, const float uy, const float uz,
 #endif
 
 #ifdef MOVING_BOUNDARIES
+//================================================================================================
+//                                  BOUNDARY CONDITIONS
+//================================================================================================
+// Functions for handling different types of boundary conditions in the simulation
 
 void apply_moving_boundaries(float *fhn, const uxx *j, const global float *u,
                              const global uchar *flags) {
@@ -1746,6 +1785,10 @@ void apply_moving_boundaries(float *fhn, const uxx *j, const global float *u,
 #endif
 
 #ifdef SURFACE
+//================================================================================================
+//                                  SURFACE AND INTERFACE HANDLING
+//================================================================================================
+// Functions for free surface flows, interface tracking, and surface tension
 
 void average_neighbors_non_gas(const uxx n, const global float *rho,
                                const global float *u, const global uchar *flags,
@@ -2015,6 +2058,10 @@ float calculate_curvature(const uxx n, const float *phit,
 #endif
 
 #ifdef TEMPERATURE
+//================================================================================================
+//                                  TEMPERATURE AND THERMAL LBM
+//================================================================================================
+// Functions for thermal lattice Boltzmann method and temperature field simulation
 
 void neighbors_temperature(const uxx n, uxx *j7) {
   uxx x0, xp, xm, y0, yp, ym, z0, zp, zm;
@@ -2076,6 +2123,11 @@ void store_f(const uxx n, const float *fhn, global fpxx *fi, const uxx *j,
     store(fi, index_f(n, t % 2ul ? i : i + 1u), fhn[i + 1u]);
   }
 }
+
+//================================================================================================
+//                                  MAIN LBM KERNEL FUNCTIONS
+//================================================================================================
+// Core kernels for initialization, streaming, collision, and other LBM operations
 #ifdef SURFACE
 
 void load_f_outgoing(const uxx n, float *fon, const global fpxx *fi,
@@ -2866,6 +2918,10 @@ kernel void object_torque(const global float *F, const global uchar *flags,
 #endif
 
 #ifdef PARTICLES
+//================================================================================================
+//                                  PARTICLE SIMULATION
+//================================================================================================
+// Functions for Lagrangian particle tracking and particle-fluid interaction
 
 #ifdef FORCE_FIELD
 
@@ -2949,6 +3005,11 @@ kernel void integrate_particles(global float *particles, const global float *u,
   particles[2ul * def_particles_N + (ulong)n] = p.z;
 }
 #endif
+
+//================================================================================================
+//                                  MULTI-GPU COMMUNICATION
+//================================================================================================
+// Functions for domain decomposition and data exchange between multiple GPUs
 
 uint get_area(const uint direction) {
   const uint A[3] = {def_Ax, def_Ay, def_Az};
@@ -3244,6 +3305,11 @@ kernel void transfer__insert_T(const uint direction, const ulong t,
   T[index_insert_m(a, direction)] = transfer_buffer_m[a];
 }
 #endif
+
+//================================================================================================
+//                                  MESH VOXELIZATION AND GRAPHICS VISUALIZATION
+//================================================================================================
+// Functions for converting mesh geometry to voxel representation and visualization kernels
 
 kernel void voxelize_mesh(const uint direction, global fpxx *fi,
                           global float *u, global uchar *flags, const ulong t,
@@ -4343,6 +4409,11 @@ kernel void graphics_raytrace_phi(const global float *camera,
 #endif
 
 #ifdef SURFACE_EXPORT
+//================================================================================================
+//                                  SURFACE EXPORT
+//================================================================================================
+// Functions for exporting fluid surface mesh data for external visualization/processing
+
 kernel void count_surface_triangles(const global float *phi, global uint *triangle_count) {
   const uxx n = get_global_id(0);
   if(n >= def_N) return;
