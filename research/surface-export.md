@@ -4,6 +4,8 @@
 
 This document analyzes the current state of the surface export feature in FluidX3D and provides recommendations for completing the implementation. The goal is to export the fluid surface mesh using the marching cubes algorithm for use in external applications.
 
+**Note**: For multi-GPU simulations, the simplest approach is to export separate surface meshes from each GPU domain. See the [multi-GPU surface export research](multi-gpu-surface-export.md) for details on handling domain decomposition challenges.
+
 ## Current Implementation Status
 
 ### Host-Side Implementation (Complete)
@@ -177,6 +179,13 @@ kernel void export_surface(const global float *phi, global float *vertices,
 ### 1. Atomic Operations
 Both kernels need atomic operations to safely increment the triangle counter when multiple threads detect triangles simultaneously.
 
+### Multi-GPU Considerations
+For multi-GPU setups, the marching cubes algorithm faces challenges at domain boundaries where the 2×2×2 cube may span multiple GPUs. The recommended approach is to:
+- Export separate surface meshes from each GPU domain
+- Each domain only processes cells it fully contains
+- Post-process merge the meshes if a unified surface is needed
+- This avoids complex boundary handling and communication overhead
+
 ### 2. Buffer Overflow Protection
 The export kernel must check that it doesn't exceed `max_triangles` to prevent buffer overflow.
 
@@ -228,11 +237,12 @@ void main_setup() {
 
 ## Future Enhancements
 
-1. **Normal Calculation**: Add surface normals for better rendering
-2. **Mesh Decimation**: Reduce triangle count for large surfaces
-3. **Multiple Materials**: Support different isosurface values for multi-phase flows
-4. **Temporal Smoothing**: Average phi values over time for smoother surfaces
-5. **Adaptive Resolution**: Use finer marching cubes in areas of interest
+1. **Multi-GPU Support**: For domain-decomposed simulations, implement per-GPU surface export to avoid boundary complications
+2. **Normal Calculation**: Add surface normals for better rendering
+3. **Mesh Decimation**: Reduce triangle count for large surfaces
+4. **Multiple Materials**: Support different isosurface values for multi-phase flows
+5. **Temporal Smoothing**: Average phi values over time for smoother surfaces
+6. **Adaptive Resolution**: Use finer marching cubes in areas of interest
 
 ## References
 
