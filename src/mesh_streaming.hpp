@@ -17,6 +17,19 @@ const int SEAVIEW_ERROR_CONNECTION = -1;
 const int SEAVIEW_ERROR_SERIALIZATION = -2;
 const int SEAVIEW_ERROR_INVALID_DATA = -3;
 
+// Colored output helpers for graceful failure messages
+inline void print_warning_yellow(const string& message) {
+    print("\033[33m⚠ WARNING: " + message + "\033[0m");
+}
+
+inline void print_error_red(const string& message) {
+    print("\033[31m✗ ERROR: " + message + "\033[0m");
+}
+
+inline void print_success_green(const string& message) {
+    print("\033[32m✓ " + message + "\033[0m");
+}
+
 /**
  * MeshStreamer - Real-time mesh streaming to seaview visualization
  * 
@@ -61,6 +74,9 @@ private:
     // Error handling
     std::atomic<int> last_error{SEAVIEW_SUCCESS};
     std::atomic<uint32_t> error_count{0};
+    std::atomic<bool> connection_failed_notified{false};
+    std::chrono::steady_clock::time_point last_connection_attempt;
+    uint32_t connection_retry_interval = 30; // seconds
     
 public:
     /**
@@ -96,7 +112,7 @@ public:
     }
     
     /**
-     * Connect to seaview server
+     * Connect to seaview server with graceful failure handling
      * @return true if connection successful
      */
     bool connect() {
@@ -105,17 +121,36 @@ public:
             return true;
         }
         
-        println("MeshStreamer: Connecting to " + host + ":" + std::to_string(port));
+        // Check if we should retry connection (rate limiting)
+        auto now = std::chrono::steady_clock::now();
+        if (connection_failed_notified.load()) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_connection_attempt);
+            if (elapsed.count() < connection_retry_interval) {
+                return false; // Too soon to retry
+            }
+        }
+        
+        if (verbose_logging) println("MeshStreamer: Attempting connection to " + host + ":" + std::to_string(port));
         
         sender = seaview_network_create_sender(host.c_str(), port);
+        last_connection_attempt = now;
+        
         if (sender != nullptr) {
             connected.store(true);
-            println("MeshStreamer: Connected successfully");
+            connection_failed_notified.store(false);
+            print_success_green("MeshStreamer connected to seaview at " + host + ":" + std::to_string(port));
             return true;
         } else {
-            print_warning("MeshStreamer: Failed to connect to seaview server");
             last_error.store(SEAVIEW_ERROR_CONNECTION);
             error_count.fetch_add(1);
+            
+            // Only print warning once, then be silent until retry interval
+            if (!connection_failed_notified.load()) {
+                print_warning_yellow("Seaview server not running at " + host + ":" + std::to_string(port) + 
+                                     ". Simulation will continue without streaming. Will retry every " + 
+                                     std::to_string(connection_retry_interval) + " seconds.");
+                connection_failed_notified.store(true);
+            }
             return false;
         }
     }
@@ -186,10 +221,15 @@ public:
             return true;
         }
         
-        // Auto-connect if not connected
+        // Auto-connect if not connected (graceful failure)
         if (!connected.load()) {
             if (!connect()) {
-                return false;
+                // Connection failed, but continue simulation gracefully
+                if (verbose_logging && !connection_failed_notified.load()) {
+                    println("MeshStreamer: Skipping frame " + std::to_string(frame_counter.load()) + 
+                           " due to connection failure");
+                }
+                return true; // Return success to continue simulation
             }
         }
         
@@ -242,13 +282,15 @@ public:
             last_error.store(result);
             error_count.fetch_add(1);
             
-            print_warning("MeshStreamer: Failed to send frame " + 
-                         std::to_string(mesh_frame.frame_number) + 
-                         " (error code: " + std::to_string(result) + ")");
+            print_warning_yellow("MeshStreamer: Failed to send frame " + 
+                                 std::to_string(mesh_frame.frame_number) + 
+                                 " (error: " + std::to_string(result) + 
+                                 "). Simulation continues without streaming.");
             
-            // Disconnect on error to trigger reconnect
+            // Disconnect on error to trigger reconnect attempt
             disconnect();
-            return false;
+            connection_failed_notified.store(false); // Allow immediate retry attempt
+            return true; // Return success to continue simulation gracefully
         }
     }
     
@@ -264,8 +306,8 @@ public:
         }
         
 #if !defined(SURFACE) || !defined(SURFACE_EXPORT)
-        print_error("MeshStreamer: SURFACE and SURFACE_EXPORT extensions required");
-        return false;
+        print_warning_yellow("MeshStreamer: SURFACE and SURFACE_EXPORT extensions required. Skipping mesh streaming.");
+        return true; // Continue simulation gracefully
 #else
         // Export surface from LBM
         lbm->enqueue_export_surface();
@@ -273,8 +315,8 @@ public:
         ulong triangle_count = lbm->get_triangle_count();
         
         if (triangle_count == 0 || vertices == nullptr) {
-            if (verbose_logging) println("MeshStreamer: No surface data from LBM");
-            return true;
+            if (verbose_logging) println("MeshStreamer: No surface data from LBM (empty frame)");
+            return true; // Normal case - continue gracefully
         }
         
         // Update domain bounds from LBM if not set
@@ -309,6 +351,11 @@ public:
         if (verbose) println("MeshStreamer: Verbose logging enabled");
     }
     
+    void set_connection_retry_interval(uint32_t seconds) {
+        connection_retry_interval = seconds;
+        if (verbose_logging) println("MeshStreamer: Connection retry interval set to " + std::to_string(seconds) + "s");
+    }
+    
     void set_stats_interval(uint32_t interval) { 
         stats_interval = interval; 
         if (verbose_logging) println("MeshStreamer: Stats interval set to " + std::to_string(interval));
@@ -326,17 +373,24 @@ public:
         uint64_t send_time = total_send_time_ms.load();
         uint32_t errors = error_count.load();
         
-        if (frames > 0) {
-            double avg_frame_time = static_cast<double>(send_time) / frames;
-            double throughput_mbps = (bytes * 8.0) / (elapsed.count() * 1024.0 * 1024.0);
-            
+        if (frames > 0 || errors > 0) {
             println("MeshStreamer Statistics:");
             println("  Frames sent: " + std::to_string(frames));
-            println("  Data sent: " + std::to_string(bytes / (1024*1024)) + " MB");
-            println("  Avg frame time: " + std::to_string(avg_frame_time) + " ms");
-            println("  Throughput: " + std::to_string(throughput_mbps) + " Mbps");
-            println("  Errors: " + std::to_string(errors));
-            println("  Connection: " + std::string(connected.load() ? "Active" : "Inactive"));
+            if (frames > 0) {
+                println("  Data sent: " + std::to_string(bytes / (1024*1024)) + " MB");
+                double avg_frame_time = static_cast<double>(send_time) / frames;
+                double throughput_mbps = (bytes * 8.0) / (elapsed.count() * 1024.0 * 1024.0);
+                println("  Avg frame time: " + std::to_string(avg_frame_time) + " ms");
+                println("  Throughput: " + std::to_string(throughput_mbps) + " Mbps");
+            }
+            
+            if (errors > 0) {
+                print_warning_yellow("  Connection errors: " + std::to_string(errors));
+            }
+            
+            string status = connected.load() ? "Connected" : 
+                           (connection_failed_notified.load() ? "Disconnected (will retry)" : "Connecting...");
+            println("  Status: " + status);
         }
         
         last_stats_print = now;
@@ -450,6 +504,6 @@ inline void stream_mesh_frame(LBM* lbm, ulong timestep, std::unique_ptr<MeshStre
         streamer->enable();
     }
     
-    // Stream the mesh
+    // Stream the mesh (graceful failure - simulation continues regardless)
     streamer->send_mesh_from_lbm(lbm);
 }
