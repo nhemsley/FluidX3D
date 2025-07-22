@@ -6,7 +6,7 @@ echo "Analyzing bathymetry simulation frames..."
 echo "========================================="
 
 # Check if frames directory exists
-FRAMES_DIR="tmp/bathymetry_frames"
+FRAMES_DIR="../tmp/bathymetry_frames"
 if [ ! -d "$FRAMES_DIR" ]; then
     echo "Error: Frames directory not found at $FRAMES_DIR"
     exit 1
@@ -30,7 +30,7 @@ echo "Last frame: $(basename $LAST_FRAME)"
 echo ""
 
 # Create comparison directory
-COMPARE_DIR="tmp/frame_comparison"
+COMPARE_DIR="../tmp/frame_comparison"
 mkdir -p $COMPARE_DIR
 
 # Copy key frames for analysis
