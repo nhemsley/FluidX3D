@@ -2,6 +2,10 @@ MAKEFLAGS = -j$(nproc)
 CC = g++
 CFLAGS = -std=c++17 -pthread -O -Wno-comment
 
+# Seaview-network library paths
+SEAVIEW_LIB_PATH = ./vendor/seaview/target/release
+SEAVIEW_INCLUDE_PATH = ./vendor/seaview/crates/seaview-network/include
+
 .PHONY: no-target
 no-target:
 	@echo "\033[91mError\033[0m: Please select one of these targets: make Linux-X11, make Linux, make macOS, make Android"
@@ -11,6 +15,10 @@ Linux-X11 Linux macOS Android: LDFLAGS_OPENCL = -I./src/OpenCL/include
 Linux-X11 Linux: LDLIBS_OPENCL = -L./src/OpenCL/lib -lOpenCL
 macOS: LDLIBS_OPENCL = -framework OpenCL
 Android: LDLIBS_OPENCL = -L/system/vendor/lib64 -lOpenCL
+
+# Seaview-network linking
+Linux-X11 Linux macOS Android: LDFLAGS_SEAVIEW = -I$(SEAVIEW_INCLUDE_PATH)
+Linux-X11 Linux macOS Android: LDLIBS_SEAVIEW = -L$(SEAVIEW_LIB_PATH) -lseaview_network -ldl -lm
 
 Linux-X11: LDFLAGS_X11 = -I./src/X11/include
 Linux macOS Android: LDFLAGS_X11 =
@@ -22,7 +30,7 @@ Linux-X11 Linux macOS Android: bin/FluidX3D
 
 bin/FluidX3D: temp/graphics.o temp/info.o temp/lbm.o temp/lodepng.o temp/main.o temp/setup.o temp/shapes.o make.sh
 	@mkdir -p bin
-	$(CC) temp/*.o -o bin/FluidX3D $(CFLAGS) $(LDFLAGS_OPENCL) $(LDLIBS_OPENCL) $(LDFLAGS_X11) $(LDLIBS_X11)
+	$(CC) temp/*.o -o bin/FluidX3D $(CFLAGS) $(LDFLAGS_OPENCL) $(LDLIBS_OPENCL) $(LDFLAGS_X11) $(LDLIBS_X11) $(LDFLAGS_SEAVIEW) $(LDLIBS_SEAVIEW)
 
 temp/graphics.o: src/graphics.cpp src/defines.hpp src/graphics.hpp src/lodepng.hpp src/utilities.hpp make.sh
 	@mkdir -p temp
@@ -46,9 +54,9 @@ temp/main.o: src/main.cpp src/defines.hpp src/graphics.hpp src/info.hpp src/lbm.
 	@mkdir -p temp
 	$(CC) -c src/main.cpp -o temp/main.o $(CFLAGS) $(LDFLAGS_OPENCL)
 
-temp/setup.o: src/setup.cpp src/defines.hpp src/graphics.hpp src/info.hpp src/lbm.hpp src/lodepng.hpp src/opencl.hpp src/setup.hpp src/shapes.hpp src/units.hpp src/utilities.hpp make.sh
+temp/setup.o: src/setup.cpp src/defines.hpp src/graphics.hpp src/info.hpp src/lbm.hpp src/lodepng.hpp src/opencl.hpp src/setup.hpp src/shapes.hpp src/units.hpp src/utilities.hpp src/mesh_streaming.hpp make.sh
 	@mkdir -p temp
-	$(CC) -c src/setup.cpp -o temp/setup.o $(CFLAGS) $(LDFLAGS_OPENCL)
+	$(CC) -c src/setup.cpp -o temp/setup.o $(CFLAGS) $(LDFLAGS_OPENCL) $(LDFLAGS_SEAVIEW)
 
 temp/shapes.o: src/shapes.cpp src/shapes.hpp src/utilities.hpp make.sh
 	@mkdir -p temp

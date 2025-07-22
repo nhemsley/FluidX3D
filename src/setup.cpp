@@ -197,7 +197,9 @@ void main_setup_beach() { // breaking waves on beach; required extensions in def
 		if(x==0u||x==Nx-1u||y==0u||y==Ny-1u||z==0u||z==Nz-1u) lbm.flags[n] = TYPE_S; // all non periodic
 		if(y==0u && x>0u&&x<Nx-1u&&z>0u&&z<Nz-1u) lbm.flags[n] = TYPE_E;
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
+#ifdef GRAPHICS
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D()==1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+#endif // GRAPHICS
 	lbm.run(0u); // initialize simulation
 
 #ifdef SURFACE_EXPORT
@@ -367,7 +369,9 @@ void main_setup_loading_stl_broken() { // breaking waves on beach; required exte
 	// Usage: ./FluidX3D --load-bathymetry path/to/bathymetry.stl
 	// The domain size will be automatically set based on the STL bounding box
 	// Use --autostart command line argument or uncomment the line below to start simulation automatically
+#ifdef INTERACTIVE_GRAPHICS
 	key_P = true; // autostart simulation in interactive graphics mode
+#endif // INTERACTIVE_GRAPHICS
 
 	/* WAVE GENERATION DEBUGGING SUMMARY:
 	 *
@@ -555,7 +559,9 @@ void main_setup_loading_stl_broken() { // breaking waves on beach; required exte
 			if(y==0u && x>0u&&x<lbm_Nx-1u&&z>0u&&z<lbm_Nz-1u) lbm.flags[n] = TYPE_E;
 		}
 	}); // ####################################################################### run simulation, export images and data ##########################################################################
+#ifdef GRAPHICS
 	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE|VIS_PHI_RAYTRACE; // Show both surface mesh and raytracing
+#endif // GRAPHICS
 
 	#ifdef SURFACE_EXPORT
 		// Parse surface export configuration from command line arguments
