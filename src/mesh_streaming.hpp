@@ -486,8 +486,11 @@ inline void stream_mesh_frame(LBM* lbm, ulong timestep, std::unique_ptr<MeshStre
     if (!mesh_streaming_config.enabled || !lbm) return;
     if (!mesh_streaming_config.should_stream(timestep)) return;
     
+    println("DEBUG: stream_mesh_frame called for timestep " + to_string(timestep));
+    
     // Create streamer if needed
     if (!streamer) {
+        println("DEBUG: Creating new MeshStreamer for " + mesh_streaming_config.host + ":" + to_string(mesh_streaming_config.port));
         string sim_id = mesh_streaming_config.simulation_id;
         if (sim_id.empty()) {
             sim_id = "fluidx3d";
@@ -505,5 +508,7 @@ inline void stream_mesh_frame(LBM* lbm, ulong timestep, std::unique_ptr<MeshStre
     }
     
     // Stream the mesh (graceful failure - simulation continues regardless)
+    println("DEBUG: About to call send_mesh_from_lbm");
     streamer->send_mesh_from_lbm(lbm);
+    println("DEBUG: send_mesh_from_lbm completed");
 }
