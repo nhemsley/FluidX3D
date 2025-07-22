@@ -57,8 +57,8 @@ void main_setup_right_hander()
 		// leading point
 		{leading_x - inner_radius, leading_y, z, inner_radius, outer_radius},
 		{leading_x + inner_radius, leading_y + inner_radius * 2, z, inner_radius, outer_radius},
-		{leading_x + inner_radius , leading_y + inner_radius * 3.0, z, inner_radius, outer_radius},
-		{leading_x + inner_radius , leading_y + inner_radius * 4.0, z, inner_radius, outer_radius}};
+		{leading_x + inner_radius , leading_y + inner_radius * 3.0f, z, inner_radius, outer_radius},
+		{leading_x + inner_radius , leading_y + inner_radius * 4.0f, z, inner_radius, outer_radius}};
 
 
 	parallel_for(lbm.get_N(), [&](ulong n)
