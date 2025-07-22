@@ -1,7 +1,12 @@
 #include "setup.hpp"
 #include "surface_export.hpp"
+#include "mesh_streaming.hpp"
+#include <memory>
 
 #include "shapes.hpp"
+
+// Global mesh streaming configuration
+MeshStreamingConfig mesh_streaming_config;
 
 
 struct Torus
@@ -114,6 +119,29 @@ void main_setup_right_hander()
 		println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
 #endif // SURFACE_EXPORT
 
+		// Parse mesh streaming configuration from command line arguments
+		MeshStreamingConfig mesh_streaming_config = MeshStreamingConfig::parse_from_arguments(main_arguments);
+		
+		// Force enable mesh streaming for testing (comment out for production)
+		if(!mesh_streaming_config.enabled) {
+			mesh_streaming_config.enabled = true;
+			mesh_streaming_config.host = "localhost";
+			mesh_streaming_config.port = 15703;
+			mesh_streaming_config.simulation_id = "fluidx3d_right_hander";
+			mesh_streaming_config.stream_interval = 10u; // Stream every 10 timesteps
+			mesh_streaming_config.verbose = true;
+			println("DEBUG: Force-enabling mesh streaming for testing");
+		}
+		
+		println("DEBUG: Mesh streaming config after parsing:");
+		println("  Enabled: " + string(mesh_streaming_config.enabled ? "true" : "false"));
+		println("  Target: " + mesh_streaming_config.host + ":" + std::to_string(mesh_streaming_config.port));
+		println("  Simulation ID: " + mesh_streaming_config.simulation_id);
+		println("  Interval: " + std::to_string(mesh_streaming_config.stream_interval));
+		
+		// Initialize mesh streamer
+		std::unique_ptr<MeshStreamer> mesh_streamer = nullptr;
+
 		while(true) { // main simulation loop
 			lbm.u.read_from_device();
 			const float uy = u*sinf(2.0f*pif*frequency*(float)lbm.get_t());
@@ -140,6 +168,12 @@ println("SURFACE_EXPORT");
 				export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 			}
 #endif // SURFACE_EXPORT
+
+			// Stream mesh to seaview at regular intervals
+			if(mesh_streaming_config.enabled && lbm.get_t() > 0u && mesh_streaming_config.should_stream(lbm.get_t())) {
+				println("DEBUG: Streaming mesh frame at timestep " + to_string(lbm.get_t()));
+				stream_mesh_frame(&lbm, lbm.get_t(), mesh_streamer);
+			}
 		}
 
 
