@@ -16,9 +16,9 @@ Linux-X11 Linux: LDLIBS_OPENCL = -L./src/OpenCL/lib -lOpenCL
 macOS: LDLIBS_OPENCL = -framework OpenCL
 Android: LDLIBS_OPENCL = -L/system/vendor/lib64 -lOpenCL
 
-# Seaview-network linking
+# Seaview-network linking (static)
 Linux-X11 Linux macOS Android: LDFLAGS_SEAVIEW = -I$(SEAVIEW_INCLUDE_PATH)
-Linux-X11 Linux macOS Android: LDLIBS_SEAVIEW = -L$(SEAVIEW_LIB_PATH) -lseaview_network -ldl -lm
+Linux-X11 Linux macOS Android: LDLIBS_SEAVIEW = $(SEAVIEW_LIB_PATH)/libseaview_network.a -ldl -lm -lpthread
 
 Linux-X11: LDFLAGS_X11 = -I./src/X11/include
 Linux macOS Android: LDFLAGS_X11 =
