@@ -6,39 +6,16 @@
 #include <atomic>
 #include <chrono>
 
-// Forward declarations for seaview_network C interface
+// Include the generated C header from seaview-network
 extern "C" {
-    // Opaque handle for network sender
-    typedef struct NetworkSender NetworkSender;
-    
-    // C struct for mesh frame data
-    typedef struct {
-        const char* simulation_id;
-        uint32_t frame_number;
-        uint64_t timestamp;
-        // Domain bounds
-        float domain_min[3];
-        float domain_max[3];
-        // Vertex data
-        size_t vertex_count;
-        const float* vertices;      // x,y,z interleaved
-        const float* normals;       // Optional, can be NULL
-        // Index data (optional for triangle soup)
-        size_t index_count;
-        const uint32_t* indices;    // Optional, can be NULL
-    } CMeshFrame;
-    
-    // Network functions (will be linked from seaview-network crate)
-    NetworkSender* seaview_network_create_sender(const char* host, uint16_t port);
-    int seaview_network_send_mesh(NetworkSender* sender, const CMeshFrame* mesh);
-    void seaview_network_destroy_sender(NetworkSender* sender);
-    
-    // Error codes
-    const int SEAVIEW_SUCCESS = 0;
-    const int SEAVIEW_ERROR_CONNECTION = -1;
-    const int SEAVIEW_ERROR_SERIALIZATION = -2;
-    const int SEAVIEW_ERROR_INVALID_DATA = -3;
+    #include "../vendor/seaview/crates/seaview-network/include/seaview_network.h"
 }
+
+// Error codes for compatibility
+const int SEAVIEW_SUCCESS = 0;
+const int SEAVIEW_ERROR_CONNECTION = -1;
+const int SEAVIEW_ERROR_SERIALIZATION = -2;
+const int SEAVIEW_ERROR_INVALID_DATA = -3;
 
 /**
  * MeshStreamer - Real-time mesh streaming to seaview visualization
@@ -222,7 +199,7 @@ public:
         CMeshFrame mesh_frame = {
             .simulation_id = simulation_id.c_str(),
             .frame_number = frame_counter.fetch_add(1),
-            .timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            .timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count()),
             .domain_min = {domain_min[0], domain_min[1], domain_min[2]},
             .domain_max = {domain_max[0], domain_max[1], domain_max[2]},
