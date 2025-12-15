@@ -59,18 +59,6 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 			normal = normalize(cross_product);
 		}
 
-		// Flip normal to ensure correct orientation for fluid surfaces
-		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
-		// For fluid simulations, we want normals pointing outward (from fluid into air)
-		normal = -normal;
-
-		// DEBUG: Print first few normals to verify flipping (binary export)
-		if(i < 5) {
-			println("DEBUG STL Binary Export - Triangle " + to_string(i) + ":");
-			println("  Original normal (from cross product): [" + to_string(-normal.x) + ", " + to_string(-normal.y) + ", " + to_string(-normal.z) + "]");
-			println("  Flipped normal (being written): [" + to_string(normal.x) + ", " + to_string(normal.y) + ", " + to_string(normal.z) + "]");
-		}
-
 		// Write normal (12 bytes)
 		file.write(reinterpret_cast<const char*>(&normal.x), sizeof(float));
 		file.write(reinterpret_cast<const char*>(&normal.y), sizeof(float));
@@ -96,7 +84,6 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 
 	file.close();
 	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (binary format)");
-	println("DEBUG: Normal flipping code WAS EXECUTED in write_stl_binary");
 }
 
 // Function to write surface mesh data to ASCII STL file (for debugging/inspection)
@@ -155,18 +142,6 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 			normal = normalize(cross_product);
 		}
 
-		// Flip normal to ensure correct orientation for fluid surfaces
-		// The marching cubes algorithm generates normals pointing inward (from air into fluid)
-		// For fluid simulations, we want normals pointing outward (from fluid into air)
-		normal = -normal;
-
-		// DEBUG: Print first few normals to verify flipping
-		if(i < 5) {
-			println("DEBUG STL Export - Triangle " + to_string(i) + ":");
-			println("  Original normal (from cross product): [" + to_string(-normal.x) + ", " + to_string(-normal.y) + ", " + to_string(-normal.z) + "]");
-			println("  Flipped normal (being written): [" + to_string(normal.x) + ", " + to_string(normal.y) + ", " + to_string(normal.z) + "]");
-		}
-
 		// Write facet
 		file << "  facet normal " << normal.x << " " << normal.y << " " << normal.z << std::endl;
 		file << "    outer loop" << std::endl;
@@ -187,7 +162,6 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 
 	file.close();
 	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (ASCII format)");
-	println("DEBUG: Normal flipping code WAS EXECUTED in write_stl_ascii");
 }
 
 // Wrapper function that writes binary STL by default
@@ -281,8 +255,8 @@ struct SurfaceExportConfig {
 	// Check if export should happen at this timestep
 	bool should_export(ulong timestep) const {
 		bool result = enabled && (timestep % export_interval == 0u);
-		println("DEBUG: should_export(" + to_string(timestep) + ") - enabled: " + string(enabled ? "true" : "false") + 
-				", interval: " + to_string(export_interval) + ", mod: " + to_string(timestep % export_interval) + 
+		println("DEBUG: should_export(" + to_string(timestep) + ") - enabled: " + string(enabled ? "true" : "false") +
+				", interval: " + to_string(export_interval) + ", mod: " + to_string(timestep % export_interval) +
 				", result: " + string(result ? "true" : "false"));
 		return result;
 	}

@@ -741,8 +741,8 @@ uint marching_cubes(const float *v, const float iso, float3 *triangles) {
   uint i;
   for (i = 0u; i < 15u && triangle_table(cube + i) != 15u; i += 3u) {
     triangles[i] = vertex[triangle_table(cube + i)];
-    triangles[i + 1u] = vertex[triangle_table(cube + i + 1u)];
-    triangles[i + 2u] = vertex[triangle_table(cube + i + 2u)];
+    triangles[i + 1u] = vertex[triangle_table(cube + i + 2u)];
+    triangles[i + 2u] = vertex[triangle_table(cube + i + 1u)];
   }
   return i / 3u;
 }
