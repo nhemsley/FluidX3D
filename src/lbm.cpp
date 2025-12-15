@@ -208,7 +208,11 @@ void LBM_Domain::count_surface_triangles() {
 		// Initialize the counter memory first
 		surface_count = Memory<uint>(device, 1u, true, "surface_count");
 		// Then create the kernel with the valid memory reference
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count, flags);
+#else
 		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count);
+#endif
 	}
 	
 	// Reset the counter
@@ -263,11 +267,19 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	// Set up kernel for exporting surface if not already initialized
 	if(!kernel_export_surface.is_initialized()) {
 		printf("DEBUG: Initializing export_surface kernel\n");
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles, flags);
+#else
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
+#endif
 	} else {
 		// For reallocation, we need to recreate the kernel with the new buffer
 		printf("DEBUG: Recreating export_surface kernel with new buffer\n");
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles, flags);
+#else
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
+#endif
 	}
 	
 	surface_memory_allocated = true;
@@ -580,6 +592,10 @@ string LBM_Domain::device_defines() const { return
 #ifdef SURFACE_EXPORT
 	"\n	#define SURFACE_EXPORT"
 #endif // SURFACE_EXPORT
+
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+	"\n	#define SURFACE_EXPORT_IGNORE_BOUNDARIES"
+#endif // SURFACE_EXPORT_IGNORE_BOUNDARIES
 
 #ifdef TEMPERATURE
 	"\n	#define TEMPERATURE"

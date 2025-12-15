@@ -4414,7 +4414,11 @@ kernel void graphics_raytrace_phi(const global float *camera,
 //================================================================================================
 // Functions for exporting fluid surface mesh data for external visualization/processing
 
-kernel void count_surface_triangles(const global float *phi, global uint *triangle_count) {
+kernel void count_surface_triangles(const global float *phi, global uint *triangle_count
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+    , const global uchar *flags
+#endif
+) {
   const uxx n = get_global_id(0);
   if(n >= def_N) return;
 
@@ -4431,6 +4435,17 @@ kernel void count_surface_triangles(const global float *phi, global uint *triang
   const uxx x0 = (uxx)x, xp = (uxx)(x+1u);
   const uxx y0 = (uxx)(y*def_Nx), yp = (uxx)((y+1u)*def_Nx);
   const uxx z0 = (uxx)(z)*(uxx)(def_Ny*def_Nx), zp = (uxx)(z+1u)*(uxx)(def_Ny*def_Nx);
+
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+  // Check if any of the 8 cube corners is a solid boundary cell
+  const uxx corners[8] = {
+    x0+y0+z0, xp+y0+z0, xp+y0+zp, x0+y0+zp,
+    x0+yp+z0, xp+yp+z0, xp+yp+zp, x0+yp+zp
+  };
+  for(uint i = 0u; i < 8u; i++) {
+    if(flags[corners[i]] & TYPE_S) return; // Skip this cube if any corner touches a solid boundary
+  }
+#endif
 
   float v[8];
   v[0] = phi[x0+y0+z0]; v[1] = phi[xp+y0+z0];
@@ -4448,7 +4463,11 @@ kernel void count_surface_triangles(const global float *phi, global uint *triang
 }
 
 kernel void export_surface(const global float *phi, global float *vertices,
-                          global uint *triangle_count, const ulong max_triangles) {
+                          global uint *triangle_count, const ulong max_triangles
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+    , const global uchar *flags
+#endif
+) {
   const uxx n = get_global_id(0);
   if(n >= def_N) return;
 
@@ -4465,6 +4484,17 @@ kernel void export_surface(const global float *phi, global float *vertices,
   const uxx x0 = (uxx)x, xp = (uxx)(x+1u);
   const uxx y0 = (uxx)(y*def_Nx), yp = (uxx)((y+1u)*def_Nx);
   const uxx z0 = (uxx)(z)*(uxx)(def_Ny*def_Nx), zp = (uxx)(z+1u)*(uxx)(def_Ny*def_Nx);
+
+#ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
+  // Check if any of the 8 cube corners is a solid boundary cell
+  const uxx corners[8] = {
+    x0+y0+z0, xp+y0+z0, xp+y0+zp, x0+y0+zp,
+    x0+yp+z0, xp+yp+z0, xp+yp+zp, x0+yp+zp
+  };
+  for(uint i = 0u; i < 8u; i++) {
+    if(flags[corners[i]] & TYPE_S) return; // Skip this cube if any corner touches a solid boundary
+  }
+#endif
 
   float v[8];
   v[0] = phi[x0+y0+z0]; v[1] = phi[xp+y0+z0];
