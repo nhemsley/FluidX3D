@@ -356,7 +356,103 @@ void main_setup_sphere() {
 		}
 }
 
+// Debug test function: small cube domain filled with water, exports STL after a few frames
+void main_setup_test_cube() {
+	// Small domain for quick debugging (~100 cells per dimension)
+	const uint N = 10u; // ~100 would be 100^3 = 1M cells, 64^3 = 262K cells is faster for testing
+	const float f = 0.001f; // gravity force
+	const float nu = 0.01f; // viscosity
+
+	println("=== Test Cube Debug Setup ===");
+	println("Domain size: " + to_string(N) + "x" + to_string(N) + "x" + to_string(N));
+
+	LBM lbm(N, N, N, nu, 0.0f, 0.0f, -f);
+
+	const uint Nx = lbm.get_Nx(), Ny = lbm.get_Ny(), Nz = lbm.get_Nz();
+	const uint water_height = Nz / 2u; // fill bottom half with water
+
+	println("Water height: " + to_string(water_height));
+
+	// Initialize domain: water in bottom half, solid boundaries
+	parallel_for(lbm.get_N(), [&](ulong n) {
+		uint x = 0u, y = 0u, z = 0u;
+		lbm.coordinates(n, x, y, z);
+
+		// Fill bottom half with water (fluid)
+		if(z < water_height) {
+			lbm.flags[n] = TYPE_F;
+			lbm.rho[n] = units.rho_hydrostatic(f, (float)z, (float)water_height);
+		}
+
+		// Solid boundaries on all sides
+		if(x == 0u || x == Nx - 1u || y == 0u || y == Ny - 1u || z == 0u || z == Nz - 1u) {
+			lbm.flags[n] = TYPE_S;
+		}
+	});
+
+	println("Domain initialized with water");
+
+#ifdef GRAPHICS
+	lbm.graphics.visualization_modes = VIS_FLAG_LATTICE | (lbm.get_D() == 1u ? VIS_PHI_RAYTRACE : VIS_PHI_RASTERIZE);
+#endif // GRAPHICS
+
+	// Initialize simulation
+	lbm.run(0u);
+	println("Simulation initialized");
+
+#ifdef SURFACE_EXPORT
+	// Setup surface export config for debug output
+	SurfaceExportConfig surface_export_config;
+	surface_export_config.enabled = true;
+	surface_export_config.directory = get_exe_path() + "test_cube_export/";
+	surface_export_config.export_interval = 1u; // Export every frame
+	surface_export_config.ascii_format = true; // ASCII for easy inspection
+
+	// Create export directory
+	create_directory_if_not_exists(surface_export_config.directory);
+
+	println("Surface export enabled to: " + surface_export_config.directory);
+
+	// Export initial frame (frame 0)
+	println("Exporting initial surface (frame 0)...");
+	export_surface_frame(&lbm, 0u, surface_export_config);
+
+	// Run for a few frames and export each
+	const uint num_frames = 3u;
+	const uint steps_per_frame = 10u;
+
+	for(uint frame = 1u; frame <= num_frames; frame++) {
+		println("Running " + to_string(steps_per_frame) + " timesteps...");
+		lbm.run(steps_per_frame);
+
+		println("Exporting surface (frame " + to_string(frame) + ", timestep " + to_string(lbm.get_t()) + ")...");
+
+		// Force export regardless of interval check
+		lbm.enqueue_export_surface();
+		float* vertices = lbm.get_surface_vertices();
+		ulong triangle_count = lbm.get_triangle_count();
+
+		if(triangle_count > 0u && vertices != nullptr) {
+			string filename = surface_export_config.directory + "test_cube_frame_" + to_string(frame) + ".stl";
+			write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
+			println("Exported " + to_string(triangle_count) + " triangles to " + filename);
+		} else {
+			println("WARNING: No triangles to export at frame " + to_string(frame));
+		}
+	}
+
+	println("=== Test Cube Complete ===");
+	println("Exported " + to_string(num_frames + 1) + " frames to " + surface_export_config.directory);
+	println("Total timesteps: " + to_string(lbm.get_t()));
+
+#else
+	print_error("SURFACE_EXPORT extension is required for main_setup_test_cube()");
+	print_error("Enable SURFACE and SURFACE_EXPORT in defines.hpp");
+#endif // SURFACE_EXPORT
+}
+
 void main_setup() {
+    // main_setup_test_cube(); // Debug test cube
     main_setup_right_hander();
     // main_setup_sphere();
     // main_setup_beach();
