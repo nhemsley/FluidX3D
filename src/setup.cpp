@@ -2,8 +2,10 @@
 #include "surface_export.hpp"
 #include "mesh_streaming.hpp"
 #include <memory>
+#include <string>
 
 #include "shapes.hpp"
+#include "utilities.hpp"
 
 // Global mesh streaming configuration
 MeshStreamingConfig mesh_streaming_config;
@@ -26,11 +28,11 @@ struct Torus
 void main_setup_right_hander()
 {
 	const float f = 0.001f;			 // make smaller
-	const float u = 0.17f;			 // peak velocity of speaker membrane
+	const float u = 0.13f;			 // peak velocity of speaker membrane
 	const float frequency = 0.0007f; // amplitude = u/(2.0f*pif*frequency);
 	const float width = 50.0f, depth = 50.0f, height = 10.0f;
 	const uint simulation_steps = 50u;
-	const uint mem = 4000u;
+	const uint mem = 6000u;
 	const uint3 dims = resolution(float3(width, depth, height), mem);
 	LBM lbm(dims, 0.01f, 0.0f, 0.0f, -f);
 
@@ -100,12 +102,14 @@ void main_setup_right_hander()
 	#ifdef SURFACE_EXPORT
 		// Parse surface export configuration from command line arguments
 		SurfaceExportConfig surface_export_config = SurfaceExportConfig::parse_from_arguments(main_arguments);
+		std::string run_hash = shell_exec("human-hash");
 
 		// Force enable surface export for testing (comment out for production)
 		if(!surface_export_config.enabled) {
 			surface_export_config.enabled = true;
-			surface_export_config.directory = get_exe_path() + "export/";
-			surface_export_config.export_interval = 100u;
+
+			surface_export_config.directory = get_exe_path() + "../../runs/" + run_hash + "/";
+			surface_export_config.export_interval = 10u;
 			surface_export_config.ascii_format = false;
 			println("DEBUG: Force-enabling surface export for testing");
 			// Create directory if needed

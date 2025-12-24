@@ -4158,6 +4158,32 @@ inline void set_environment_variable(char* s) { // usage: set_environment_variab
 
 #ifdef UTILITIES_FILE
 #include <fstream> // read/write files
+#include <cstdio> // popen, pclose for shell_exec
+
+// Execute a shell command and capture its stdout output as a string
+// Returns the trimmed output (whitespace removed from beginning and end)
+inline string shell_exec(const string& command) {
+	string result;
+	FILE* pipe = popen(command.c_str(), "r");
+	if(!pipe) {
+		print_warning("shell_exec: Failed to execute command: " + command);
+		return "";
+	}
+	char buffer[256];
+	while(fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+		result += buffer;
+	}
+	int status = pclose(pipe);
+	if(status != 0) {
+		print_warning("shell_exec: Command returned non-zero status: " + command);
+	}
+	// Trim trailing whitespace (newlines, spaces, etc.)
+	while(!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
+		result.pop_back();
+	}
+	return result;
+}
+
 #ifndef UTILITIES_NO_CPP17
 #include <filesystem> // automatically create directory before writing file, requires C++17
 inline vector<string> find_files(const string& path, const string& extension=".*") {
