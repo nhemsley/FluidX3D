@@ -200,11 +200,11 @@ void LBM_Domain::enqueue_surface_3() {
 
 #ifdef SURFACE_EXPORT
 void LBM_Domain::count_surface_triangles() {
-	printf("DEBUG: Counting surface triangles...\n");
-	
+	// printf("DEBUG: Counting surface triangles...\n");
+
 	// Initialize the counter kernel if not already done
 	if(!kernel_count_surface_triangles.is_initialized()) {
-		printf("DEBUG: Initializing count_surface_triangles kernel and counter memory\n");
+		// printf("DEBUG: Initializing count_surface_triangles kernel and counter memory\n");
 		// Initialize the counter memory first
 		surface_count = Memory<uint>(device, 1u, true, "surface_count");
 		// Then create the kernel with the valid memory reference
@@ -214,59 +214,59 @@ void LBM_Domain::count_surface_triangles() {
 		kernel_count_surface_triangles = Kernel(device, get_N(), "count_surface_triangles", phi, surface_count);
 #endif
 	}
-	
+
 	// Reset the counter
 	surface_count.reset(0u);
-	
+
 	// Note: phi is already up-to-date from the last collision step
 	// Do NOT call enqueue_update_fields() here as it disrupts the simulation state
-	
+
 	// Run the counting kernel
-	printf("DEBUG: Running triangle counting kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
+	// printf("DEBUG: Running triangle counting kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
 	kernel_count_surface_triangles.enqueue_run();
 	device.finish_queue();
-	
+
 	// Read the count from device
 	surface_count.read_from_device();
 	ulong triangle_count = (ulong)surface_count[0];
-	printf("DEBUG: Count complete - found %lu triangles\n", triangle_count);
-	
+	// printf("DEBUG: Count complete - found %lu triangles\n", triangle_count);
+
 	// Allocate memory with 10% margin
 	ulong required_triangles = (ulong)((float)triangle_count * 1.1f);
-	printf("DEBUG: Allocating memory for %lu triangles (10%% margin)\n", required_triangles);
+	// printf("DEBUG: Allocating memory for %lu triangles (10%% margin)\n", required_triangles);
 	allocate_surface_memory(required_triangles);
 }
 
 void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 	// If memory is already allocated, check if we need to reallocate
 	if(surface_memory_allocated && triangle_count <= max_triangles) {
-		printf("DEBUG: Current allocation of %lu triangles is sufficient for requested %lu\n", max_triangles, triangle_count);
+		// printf("DEBUG: Current allocation of %lu triangles is sufficient for requested %lu\n", max_triangles, triangle_count);
 		return; // Current allocation is sufficient
 	}
-	
-	printf("DEBUG: %s surface memory for %lu triangles\n", 
-		surface_memory_allocated ? "Reallocating" : "Allocating initial", triangle_count);
-	
+
+	// printf("DEBUG: %s surface memory for %lu triangles\n",
+	// 	surface_memory_allocated ? "Reallocating" : "Allocating initial", triangle_count);
+
 	// Set the max triangles (allocate at least 1 to avoid 0-size allocation)
 	max_triangles = max(triangle_count, 1ull);
-	
+
 	// Free existing memory if already allocated
 	if(surface_memory_allocated) {
-		printf("DEBUG: Freeing existing surface memory\n");
+		// printf("DEBUG: Freeing existing surface memory\n");
 		// Don't reassign the Memory object yet, just mark for reallocation
 	}
-	
+
 	// Allocate memory for surface vertices (9 floats per triangle - 3 vertices, each with xyz)
 	ulong memory_size_bytes = max_triangles * 9ull * sizeof(float);
-	printf("DEBUG: Allocating %.2f MB for surface vertices (%lu triangles)\n", 
-		(float)memory_size_bytes/(1024.0f*1024.0f), max_triangles);
-	
+	// printf("DEBUG: Allocating %.2f MB for surface vertices (%lu triangles)\n",
+		// (float)memory_size_bytes/(1024.0f*1024.0f), max_triangles);
+
 	// Create new memory buffer and move it to surface_vertices
 	surface_vertices = Memory<float>(device, max_triangles*9ull, true, "surface_vertices");
-	
+
 	// Set up kernel for exporting surface if not already initialized
 	if(!kernel_export_surface.is_initialized()) {
-		printf("DEBUG: Initializing export_surface kernel\n");
+		// printf("DEBUG: Initializing export_surface kernel\n");
 #ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles, flags);
 #else
@@ -274,53 +274,53 @@ void LBM_Domain::allocate_surface_memory(ulong triangle_count) {
 #endif
 	} else {
 		// For reallocation, we need to recreate the kernel with the new buffer
-		printf("DEBUG: Recreating export_surface kernel with new buffer\n");
+		// printf("DEBUG: Recreating export_surface kernel with new buffer\n");
 #ifdef SURFACE_EXPORT_IGNORE_BOUNDARIES
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles, flags);
 #else
 		kernel_export_surface = Kernel(device, get_N(), "export_surface", phi, surface_vertices, surface_count, max_triangles);
 #endif
 	}
-	
+
 	surface_memory_allocated = true;
 	print_info("Surface export buffer allocated for " + to_string(max_triangles) + " triangles (" + to_string((uint)(memory_size_bytes/(1024ull*1024ull))) + " MB)");
 }
 
 void LBM_Domain::enqueue_export_surface() {
-	printf("DEBUG: Exporting surface triangles...\n");
-	
+	// printf("DEBUG: Exporting surface triangles...\n");
+
 	// Check if memory is allocated
 	if(!surface_memory_allocated) {
-		printf("DEBUG: Surface memory not allocated yet, running counting phase first\n");
+		// printf("DEBUG: Surface memory not allocated yet, running counting phase first\n");
 		count_surface_triangles(); // This will count and allocate
 	} else {
-		printf("DEBUG: Using pre-allocated surface memory for %lu triangles\n", max_triangles);
+		// printf("DEBUG: Using pre-allocated surface memory for %lu triangles\n", max_triangles);
 	}
-	
+
 	// Reset triangle counter
 	surface_count.reset(0u);
-	
+
 	// Note: phi is already up-to-date from the last collision step
 	// Do NOT call enqueue_update_fields() here as it disrupts the simulation state
-	
+
 	// Run the export surface kernel
-	printf("DEBUG: Running triangle export kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
+	// printf("DEBUG: Running triangle export kernel on grid size %ux%ux%u\n", Nx, Ny, Nz);
 	kernel_export_surface.enqueue_run();
 	device.finish_queue(); // Make sure the kernel completes
-	
+
 	// Check if we're close to the buffer limit (90%)
 	ulong triangle_count = get_triangle_count();
-	printf("DEBUG: Export complete - wrote %lu triangles (buffer capacity: %lu)\n", triangle_count, max_triangles);
-	
+	// printf("DEBUG: Export complete - wrote %lu triangles (buffer capacity: %lu)\n", triangle_count, max_triangles);
+
 	if(triangle_count > max_triangles*0.9) {
 		float percent_used = (float)triangle_count/(float)max_triangles*100.0f;
-		printf("WARNING: Surface export buffer is at %.1f%% capacity\n", percent_used);
-		print_info("Surface export buffer is at " + to_string(percent_used) + "% capacity - consider reallocating");
-		
+		// printf("WARNING: Surface export buffer is at %.1f%% capacity\n", percent_used);
+		// print_info("Surface export buffer is at " + to_string(percent_used) + "% capacity - consider reallocating");
+
 		// Reallocate with more space if we're getting too close to the limit
 		if(triangle_count > max_triangles*0.95) {
 			ulong new_size = (ulong)((float)max_triangles * 1.2f);
-			printf("DEBUG: Auto-reallocating buffer to %lu triangles (20%% increase)\n", new_size);
+			// printf("DEBUG: Auto-reallocating buffer to %lu triangles (20%% increase)\n", new_size);
 			allocate_surface_memory(new_size); // Increase by 20%
 		}
 	}
@@ -329,7 +329,7 @@ void LBM_Domain::enqueue_export_surface() {
 ulong LBM_Domain::get_triangle_count() {
 	// Read triangle count from device
 	surface_count.read_from_device();
-	printf("DEBUG: Current triangle count: %u\n", surface_count[0]);
+	// printf("DEBUG: Current triangle count: %u\n", surface_count[0]);
 	return (ulong)surface_count[0];
 }
 
@@ -340,11 +340,11 @@ float* LBM_Domain::get_surface_vertices() {
 		print_error("Surface memory not allocated. Call count_surface_triangles() or enqueue_export_surface() first.");
 		return nullptr;
 	}
-	
+
 	// Read vertices from device
-	printf("DEBUG: Reading surface vertices from device (triangle count: %lu)\n", get_triangle_count());
+	// printf("DEBUG: Reading surface vertices from device (triangle count: %lu)\n", get_triangle_count());
 	surface_vertices.read_from_device();
-	printf("DEBUG: Surface vertices read complete\n");
+	// printf("DEBUG: Surface vertices read complete\n");
 	return surface_vertices.data();
 }
 #endif // SURFACE_EXPORT

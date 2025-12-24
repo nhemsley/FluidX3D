@@ -111,21 +111,20 @@ void main_setup_right_hander()
 			surface_export_config.directory = get_exe_path() + "../../runs/" + run_hash + "/";
 			surface_export_config.export_interval = 10u;
 			surface_export_config.ascii_format = false;
-			println("DEBUG: Force-enabling surface export for testing");
 			// Create directory if needed
 			create_directory_if_not_exists(surface_export_config.directory);
 		}
 
-		println("DEBUG: Beach setup - Surface export config after parsing:");
-		println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
-		println("  Directory: " + surface_export_config.directory);
-		println("  Interval: " + to_string(surface_export_config.export_interval));
-		println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
+		// println("DEBUG: Beach setup - Surface export config after parsing:");
+		// println("  Enabled: " + string(surface_export_config.enabled ? "true" : "false"));
+		// println("  Directory: " + surface_export_config.directory);
+		// println("  Interval: " + to_string(surface_export_config.export_interval));
+		// println("  ASCII format: " + string(surface_export_config.ascii_format ? "true" : "false"));
 #endif // SURFACE_EXPORT
 
 		// Parse mesh streaming configuration from command line arguments
 		MeshStreamingConfig mesh_streaming_config = MeshStreamingConfig::parse_from_arguments(main_arguments);
-		
+
 		// Force enable mesh streaming for testing (comment out for production)
 		if(!mesh_streaming_config.enabled) {
 			mesh_streaming_config.enabled = true;
@@ -136,13 +135,13 @@ void main_setup_right_hander()
 			mesh_streaming_config.verbose = true;
 			println("DEBUG: Force-enabling mesh streaming for testing");
 		}
-		
+
 		println("DEBUG: Mesh streaming config after parsing:");
 		println("  Enabled: " + string(mesh_streaming_config.enabled ? "true" : "false"));
 		println("  Target: " + mesh_streaming_config.host + ":" + std::to_string(mesh_streaming_config.port));
 		println("  Simulation ID: " + mesh_streaming_config.simulation_id);
 		println("  Interval: " + std::to_string(mesh_streaming_config.stream_interval));
-		
+
 		// Initialize mesh streamer
 		std::unique_ptr<MeshStreamer> mesh_streamer = nullptr;
 
@@ -161,21 +160,20 @@ void main_setup_right_hander()
 			}
 			lbm.u.write_to_device();
 			lbm.run(10u);
-  println("HERE");
 
 #ifdef SURFACE_EXPORT
-println("SURFACE_EXPORT");
+// println("SURFACE_EXPORT");
 
 			// Export surface at regular intervals
 			if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
-			    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+			    // println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
 				export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 			}
 #endif // SURFACE_EXPORT
 
 			// Stream mesh to seaview at regular intervals
 			if(mesh_streaming_config.enabled && lbm.get_t() > 0u && mesh_streaming_config.should_stream(lbm.get_t())) {
-				println("DEBUG: Streaming mesh frame at timestep " + to_string(lbm.get_t()));
+				// println("DEBUG: Streaming mesh frame at timestep " + to_string(lbm.get_t()));
 				stream_mesh_frame(&lbm, lbm.get_t(), mesh_streamer);
 			}
 		}
@@ -254,7 +252,7 @@ println("SURFACE_EXPORT");
 
 		// Export surface at regular intervals
 		if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
-		    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+		    // println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
 			export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 		}
 #endif // SURFACE_EXPORT
@@ -353,7 +351,7 @@ void main_setup_sphere() {
 
 			// Export surface at regular intervals
 			if(surface_export_config.enabled && lbm.get_t() > 0u && surface_export_config.should_export(lbm.get_t())) {
-			    println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
+			    // println("DEBUG: Exporting surface frame at timestep " + to_string(lbm.get_t()));
 				export_surface_frame(&lbm, lbm.get_t(), surface_export_config);
 			}
 #endif // SURFACE_EXPORT
@@ -439,14 +437,14 @@ void main_setup_test_cube() {
 		if(triangle_count > 0u && vertices != nullptr) {
 			string filename = surface_export_config.directory + "test_cube_frame_" + to_string(frame) + ".stl";
 			write_stl(filename, vertices, triangle_count, surface_export_config.ascii_format);
-			println("Exported " + to_string(triangle_count) + " triangles to " + filename);
+			// println("Exported " + to_string(triangle_count) + " triangles to " + filename);
 		} else {
 			println("WARNING: No triangles to export at frame " + to_string(frame));
 		}
 	}
 
 	println("=== Test Cube Complete ===");
-	println("Exported " + to_string(num_frames + 1) + " frames to " + surface_export_config.directory);
+	// println("Exported " + to_string(num_frames + 1) + " frames to " + surface_export_config.directory);
 	println("Total timesteps: " + to_string(lbm.get_t()));
 
 #else

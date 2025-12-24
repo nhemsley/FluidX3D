@@ -83,7 +83,7 @@ inline void write_stl_binary(const string& filename, const float* vertices, cons
 	}
 
 	file.close();
-	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (binary format)");
+	// println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (binary format)");
 }
 
 // Function to write surface mesh data to ASCII STL file (for debugging/inspection)
@@ -161,7 +161,7 @@ inline void write_stl_ascii(const string& filename, const float* vertices, const
 	}
 
 	file.close();
-	println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (ASCII format)");
+	// println("Exported " + to_string(triangle_count) + " triangles to \"" + filename + "\" (ASCII format)");
 }
 
 // Wrapper function that writes binary STL by default
@@ -221,13 +221,13 @@ struct SurfaceExportConfig {
 
 	// Parse command line arguments for surface export
 	void parse_arguments(const vector<string>& args) {
-		println("DEBUG: Parsing surface export arguments. Total args: " + to_string(args.size()));
+		// println("DEBUG: Parsing surface export arguments. Total args: " + to_string(args.size()));
 		for(size_t i = 0; i < args.size(); i++) {
-			println("DEBUG: Arg[" + to_string(i) + "] = " + args[i]);
+			// println("DEBUG: Arg[" + to_string(i) + "] = " + args[i]);
 			if(args[i] == "--export-surface-to" && i + 1 < args.size()) {
 				directory = args[i + 1];
 				enabled = true;
-				println("DEBUG: Surface export enabled. Directory: " + directory);
+				// println("DEBUG: Surface export enabled. Directory: " + directory);
 
 				// Ensure directory ends with separator
 				if(!directory.empty() && directory.back() != '/' && directory.back() != '\\') {
@@ -242,22 +242,22 @@ struct SurfaceExportConfig {
 			}
 			else if(args[i] == "--export-surface-interval" && i + 1 < args.size()) {
 				export_interval = to_uint(args[i + 1]);
-				println("DEBUG: Export interval set to: " + to_string(export_interval));
+				// println("DEBUG: Export interval set to: " + to_string(export_interval));
 			}
 			else if(args[i] == "--export-surface-ascii") {
 				ascii_format = true;
-				println("DEBUG: ASCII format enabled");
+				// println("DEBUG: ASCII format enabled");
 			}
 		}
-		println("DEBUG: Parse complete. Enabled: " + string(enabled ? "true" : "false") + ", Interval: " + to_string(export_interval));
+		// println("DEBUG: Parse complete. Enabled: " + string(enabled ? "true" : "false") + ", Interval: " + to_string(export_interval));
 	}
 
 	// Check if export should happen at this timestep
 	bool should_export(ulong timestep) const {
 		bool result = enabled && (timestep % export_interval == 0u);
-		println("DEBUG: should_export(" + to_string(timestep) + ") - enabled: " + string(enabled ? "true" : "false") +
-				", interval: " + to_string(export_interval) + ", mod: " + to_string(timestep % export_interval) +
-				", result: " + string(result ? "true" : "false"));
+		// println("DEBUG: should_export(" + to_string(timestep) + ") - enabled: " + string(enabled ? "true" : "false") +
+		// 		", interval: " + to_string(export_interval) + ", mod: " + to_string(timestep % export_interval) +
+		// 		", result: " + string(result ? "true" : "false"));
 		return result;
 	}
 
